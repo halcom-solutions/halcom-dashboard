@@ -1062,6 +1062,17 @@ The preview of each template (filled with sample data) is no longer a long block
 - **Audit.** `user.impersonation_started` and `user.impersonation_ended`, with the superadmin as actor and the viewed user as the entity. Nothing else is written, since nothing can be changed.
 - **Not done:** viewing as an Admin or another Superadmin; a reason field when opening; making changes on behalf of someone.
 
+## D-087: Purchasing keeps a master list of distributors, named on each RFQ (2026-11-13)
+
+**Asked by the owner:** Purchasing manages the distributors it buys from, each with its registered name, an alias, and how it is paid (CBD, TOP of 7, 14, 30 days and so on); the distributor can be chosen on an RFQ. Then: the list can be imported (add and edit) and exported like projects.
+
+- **Data.** `distributors` (name, `name_key` unique, optional alias, `payment_type` CBD | COD | TOP, `top_days`, `is_active`) and `requests.distributor_id` (nullable, ON DELETE RESTRICT). Migration `20261113100000_distributors`, additive. A database check keeps `top_days` for TOP only (1 to 365) and requires it for TOP. COD is added next to the two named types because "dll" left the list open; it costs nothing to leave unused.
+- **Who.** `distributors.manage`: Purchasing, Admin, Superadmin. Page `/distributors` (Purchasing's menu has it). Choosing the distributor of an RFQ needs the right to work RFQs (`requests.work.purchasing`). Sales and others read it on the RFQ page only.
+- **One distributor per RFQ, RFQ only.** It is a single choice, shown with its terms ("PT Name (Alias) · TOP 14 hari"). The RFQ shows the distributor's current terms, so editing a distributor's terms changes how its RFQs read; no copy of the terms is kept on the RFQ. A distributor is deactivated, never deleted; one already on an RFQ stays there when turned off, but cannot be newly chosen. Every change is audited (`distributor.*`, `request.distributor_set`).
+- **Excel.** One layout for export, template and upload (`src/domain/distributors/sheet.ts`): Distributor ID, Nama, Alias, Pembayaran, TOP (hari), Status. A row with an ID changes that distributor, a row without adds one; a name that already exists without an ID is refused with a hint to use the ID. The upload is checked row by row first (button "Periksa berkas") and saved only when every row is valid. Export as .xlsx or CSV, audited as `export.distributors`.
+- **Known limit.** Rows are saved one by one, not in one transaction; a name taken at the same moment can stop the save halfway. The earlier rows stay saved and read as unchanged when the file is uploaded again.
+- **Not built:** several distributors on one RFQ (for comparing quotes), a distributor on a PO, contact details and notes per distributor, and the distributor in the RFQ e-mail text and in the exports of requests.
+
 ## D-089: Status can be changed from the request page, a superadmin can move a request to any status, and the board scrolls while dragging (2026-11-11)
 
 **Asked by the owner**, after the board proved hard to use on a small laptop screen.

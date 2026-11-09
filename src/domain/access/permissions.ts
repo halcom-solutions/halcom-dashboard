@@ -40,6 +40,7 @@ export type Permission =
   | "masterdata.manage"
   | "sections.manage"
   | "pics.manage"
+  | "distributors.manage"
   | "targets.edit"
   | "customers.view"
   | "customers.edit"
@@ -96,6 +97,7 @@ export const ALL_PERMISSIONS: readonly Permission[] = [
   "masterdata.manage",
   "sections.manage",
   "pics.manage",
+  "distributors.manage",
   "targets.edit",
   "customers.view",
   "customers.edit",
@@ -186,6 +188,7 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "industries.manage",
     // Admin keeps the list of PICs (the operational assignees of SOA and Purchasing tickets).
     "pics.manage",
+    "distributors.manage",
     "requests.work.boq",
     "requests.work.purchasing",
     "requests.handover",
@@ -220,6 +223,8 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     ownDashboardPermission("PURCHASING"),
     ...READ_WORK,
     "requests.work.purchasing",
+    // Purchasing keeps the list of distributors it buys from (name, alias, payment terms) and names one on each RFQ.
+    "distributors.manage",
     // Purchasing raises an RFQ for an existing project (it is also shown to the project's Sales and SOA PICs); never a BOQ or a PO.
     "requests.create.rfq",
     // Like SOA (for a BOQ), Purchasing registers the project an RFQ is for when it does not exist yet: from another source (Other), or

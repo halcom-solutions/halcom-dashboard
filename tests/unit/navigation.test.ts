@@ -26,6 +26,7 @@ function permissionFor(href: string): Permission {
   if (href.startsWith("/admin/settings")) return "settings.view";
   if (href === "/admin/master-data") return "masterdata.manage";
   if (href === "/admin/pics") return "pics.manage";
+  if (href === "/distributors") return "distributors.manage";
   if (href === "/admin/lockouts") return "logins.manage";
   throw new Error(`No permission mapped for ${href}`);
 }
@@ -61,6 +62,7 @@ describe("navLinksFor", () => {
       ["/dashboard/purchasing", "Purchasing dashboard"],
       ["/requests/rfq", "RFQ requests"],
       ["/requests/po", "PO requests"],
+      ["/distributors", "Distributors"],
     ]);
   });
 

@@ -18,6 +18,7 @@ describe("what each operational role may do", () => {
       [
         "dashboard.purchasing.view",
         "dashboard.shared.view",
+        "distributors.manage",
         "projects.assign-sales",
         "projects.bulk-update",
         "projects.create.external",

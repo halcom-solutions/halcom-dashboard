@@ -153,6 +153,7 @@ describe("Sales navigation", () => {
       ["/customers", "Customers"],
       ["/targets", "Sales targets"],
       ["/requests", "Request center"],
+      ["/quotations", "Quotations"],
     ]);
   });
 });

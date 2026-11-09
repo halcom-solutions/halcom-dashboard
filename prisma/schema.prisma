@@ -64,6 +64,12 @@ model User {
   notifications     Notification[]
   salesTargets      SalesTarget[]
 
+  quotationsPrepared  Quotation[] @relation("QuotationPreparedBy")
+  quotationsSubmitted Quotation[] @relation("QuotationSubmittedBy")
+  quotationApprovals  QuotationApproval[] @relation("QuotationApprovalDecidedBy")
+  quotationsReturned  Quotation[] @relation("QuotationReturnedBy")
+  quotationsChosen    Quotation[] @relation("QuotationChosenBy")
+  quotationsCancelled Quotation[] @relation("QuotationCancelledBy")
   @@map("users")
 }
 
@@ -241,6 +247,7 @@ model Distributor {
   terms    DistributorTerm[]
   requests Request[]
 
+  quotationLines QuotationLine[]
   @@map("distributors")
 }
 
@@ -399,6 +406,7 @@ model Project {
   progressHistory  ProjectProgressHistory[]
   actions          ProjectAction[]
 
+  quotations       Quotation[]
   @@index([progress])
   @@index([salesOwnerId])
   @@index([sourceType])
@@ -466,6 +474,9 @@ model Request {
   statusHistory RequestStatusHistory[]
 
   // A repeated handover click cannot create a second RFQ (or PO) from the same BOQ.
+  rfqQuotations Quotation[] @relation("QuotationRfq")
+  boqQuotations Quotation[] @relation("QuotationBoq")
+  items         RequestItem[]
   @@unique([sourceRequestId, type])
   @@index([projectId])
   @@index([picId])
@@ -588,6 +599,7 @@ model Pic {
   soaProjects      Project[]              @relation("ProjectSoaPic")
   purchasingProjects Project[]            @relation("ProjectPurchasingPicRef")
 
+  quotationApprovals QuotationApproval[] @relation("QuotationApprovalDecidedByPic")
   @@unique([team, nameKey])
   @@index([team, isActive])
   @@map("pics")
@@ -772,4 +784,213 @@ model AppSetting {
   updatedBy User? @relation("AppSettingUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
 
   @@map("app_settings")
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Calculation and quotation (D-088). One row per quotation: the calculation behind it (lines, costs, terms), its approvals, and the
+// customer-facing header in the shape of Jurnal's Sales Quote. A project with two options has two rows; at most one is chosen. The rules
+// (categories, tax schemes, approval steps, what the quotation shows) are a configuration in app_settings, copied onto a quotation
+// when it is submitted.
+// ---------------------------------------------------------------------------------------------------------------------------------
+
+enum QuotationStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  CANCELLED
+}
+
+enum ApprovalState {
+  PENDING
+  APPROVED
+  ACKNOWLEDGED
+}
+
+model Quotation {
+  id                String          @id @default(uuid(7)) @db.Uuid
+  // QUO-26-11-10001, as Jurnal numbers sales quotes: year and month of creation, then one running count (database check on the shape).
+  number            String          @unique
+  projectId         String          @map("project_id") @db.Uuid
+  // The RFQ the buy prices came from ("No. RFQ" on the approval sheet), and the BOQ the lines were filled from.
+  rfqRequestId      String?         @map("rfq_request_id") @db.Uuid
+  boqRequestId      String?         @map("boq_request_id") @db.Uuid
+  // "Opsi 1", "Opsi 2": tells two options of one project apart.
+  optionLabel       String          @default("") @map("option_label")
+  status            QuotationStatus @default(DRAFT)
+  // A tax scheme key of the configuration (NON_WAPU, WAPU...).
+  taxScheme         String          @map("tax_scheme")
+  preparedById      String          @map("prepared_by_id") @db.Uuid
+  // The tax scheme, categories and approval steps the quotation was submitted with; null while it is a draft (a draft follows the
+  // current configuration).
+  configSnapshot    Json?           @map("config_snapshot")
+
+  // Totals computed by the application at every save (the lines are the truth), kept for lists and dashboards.
+  revenue           Decimal         @default(0) @db.Decimal(18, 2)
+  grossMargin       Decimal         @default(0) @map("gross_margin") @db.Decimal(18, 2)
+  grossMarginBp     Int?            @map("gross_margin_bp")
+
+  // The customer-facing header, in the order of Jurnal's Sales Quote form.
+  customerName      String          @map("customer_name")
+  email             String?
+  billingAddress    String?         @map("billing_address")
+  transactionDate   DateTime        @map("transaction_date") @db.Date
+  expiryDate        DateTime?       @map("expiry_date") @db.Date
+  paymentTerm       String?         @map("payment_term")
+  customerReference String?         @map("customer_reference")
+  message           String?
+  memo              String?
+
+  submittedAt       DateTime?       @map("submitted_at") @db.Timestamptz(3)
+  submittedById     String?         @map("submitted_by_id") @db.Uuid
+  approvedAt        DateTime?       @map("approved_at") @db.Timestamptz(3)
+  // The last time it was sent back to Sales, and why.
+  returnedAt        DateTime?       @map("returned_at") @db.Timestamptz(3)
+  returnedById      String?         @map("returned_by_id") @db.Uuid
+  returnedReason    String?         @map("returned_reason")
+  // The option the customer chose; a partial unique index keeps it to one per project.
+  chosenAt          DateTime?       @map("chosen_at") @db.Timestamptz(3)
+  chosenById        String?         @map("chosen_by_id") @db.Uuid
+  cancelledAt       DateTime?       @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById     String?         @map("cancelled_by_id") @db.Uuid
+  cancelReason      String?         @map("cancel_reason")
+
+  // The Sales Quote in Jurnal, once it is sent (not yet built: D-088), and the Sales Order it was converted to.
+  jurnalQuoteId     Int?            @unique @map("jurnal_quote_id")
+  jurnalSyncedAt    DateTime?       @map("jurnal_synced_at") @db.Timestamptz(3)
+  jurnalOrderId     Int?            @unique @map("jurnal_order_id")
+
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project     Project             @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  rfqRequest  Request?            @relation("QuotationRfq", fields: [rfqRequestId], references: [id], onDelete: Restrict)
+  boqRequest  Request?            @relation("QuotationBoq", fields: [boqRequestId], references: [id], onDelete: Restrict)
+  preparedBy  User                @relation("QuotationPreparedBy", fields: [preparedById], references: [id], onDelete: Restrict)
+  submittedBy User?               @relation("QuotationSubmittedBy", fields: [submittedById], references: [id], onDelete: Restrict)
+  returnedBy  User?               @relation("QuotationReturnedBy", fields: [returnedById], references: [id], onDelete: Restrict)
+  chosenBy    User?               @relation("QuotationChosenBy", fields: [chosenById], references: [id], onDelete: Restrict)
+  cancelledBy User?               @relation("QuotationCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  lines       QuotationLine[]
+  costs       QuotationCost[]
+  terms       QuotationTerm[]
+  approvals   QuotationApproval[]
+
+  @@index([projectId])
+  @@index([status])
+  @@index([preparedById])
+  @@index([rfqRequestId])
+  @@index([boqRequestId])
+  @@map("quotations")
+}
+
+/** One approval step of one quotation, planned from the configured steps when it is submitted. */
+model QuotationApproval {
+  id               String        @id @default(uuid(7)) @db.Uuid
+  quotationId      String        @map("quotation_id") @db.Uuid
+  position         Int
+  stepKey          String        @map("step_key")
+  label            String
+  acknowledgeLabel String        @map("acknowledge_label")
+  // Must approve (the condition was met), or is only told and may note it.
+  required         Boolean
+  status           ApprovalState @default(PENDING)
+  // Who approves, as configured when it was submitted: {"kind":"ROLE","role":"PURCHASING"} or {"kind":"USERS","userIds":[...]}.
+  approver         Json
+  mayEditCosts     Boolean       @default(false) @map("may_edit_costs")
+  decidedAt        DateTime?     @map("decided_at") @db.Timestamptz(3)
+  decidedById      String?       @map("decided_by_id") @db.Uuid
+  // Purchasing and SOA sign in with one shared account each, so the person who decided can also be a PIC.
+  decidedByPicId   String?       @map("decided_by_pic_id") @db.Uuid
+  note             String?
+
+  quotation    Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  decidedBy    User?     @relation("QuotationApprovalDecidedBy", fields: [decidedById], references: [id], onDelete: Restrict)
+  decidedByPic Pic?      @relation("QuotationApprovalDecidedByPic", fields: [decidedByPicId], references: [id], onDelete: Restrict)
+
+  @@unique([quotationId, position])
+  @@unique([quotationId, stepKey])
+  @@map("quotation_approvals")
+}
+
+/** One revenue row and its cost, on one line as on the sheet ("line item and qty follow the revenue table"). */
+model QuotationLine {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  quotationId     String    @map("quotation_id") @db.Uuid
+  position        Int
+  // The heading the line sits under ("STORAGE", "JASA"), from the BOQ.
+  groupLabel      String?   @map("group_label")
+  description     String
+  specification   String?
+  // A category key of the configuration (GOODS, SERVICES...).
+  category        String
+  quantity        Decimal   @db.Decimal(12, 3)
+  unit            String    @default("Unit")
+  sellPrice       Decimal   @map("sell_price") @db.Decimal(18, 2)
+  // Null until somebody fills in the buy price; zero is a real price.
+  buyPrice        Decimal?  @map("buy_price") @db.Decimal(18, 2)
+  // Where the cost side differs from the revenue line ("Kabel, konektor" for a patch cord), else empty.
+  costDescription String?   @map("cost_description")
+  distributorId   String?   @map("distributor_id") @db.Uuid
+  // A vendor that is not in the Distributors master (a marketplace shop), typed as text.
+  vendorName      String?   @map("vendor_name")
+  vendorTerms     String?   @map("vendor_terms")
+  costNote        String?   @map("cost_note")
+
+  quotation   Quotation    @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  distributor Distributor? @relation(fields: [distributorId], references: [id], onDelete: Restrict)
+
+  @@unique([quotationId, position])
+  @@index([distributorId])
+  @@map("quotation_lines")
+}
+
+model QuotationCost {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  quotationId String    @map("quotation_id") @db.Uuid
+  position    Int
+  description String
+  note        String?
+  amount      Decimal   @db.Decimal(18, 2)
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@unique([quotationId, position])
+  @@map("quotation_costs")
+}
+
+model QuotationTerm {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  quotationId  String    @map("quotation_id") @db.Uuid
+  position     Int
+  label        String
+  sharePercent Decimal   @map("share_percent") @db.Decimal(5, 2)
+  note         String?
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@unique([quotationId, position])
+  @@map("quotation_terms")
+}
+
+/**
+ * The items of a BOQ, written by SOA (or imported from the BOQ workbook): what is offered, without prices. A new calculation of the
+ * project starts from them, so Sales do not type the unit names, specifications, units and quantities again.
+ */
+model RequestItem {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  requestId     String   @map("request_id") @db.Uuid
+  position      Int
+  groupLabel    String?  @map("group_label")
+  name          String
+  specification String?
+  // The category as SOA wrote it ("Network Equipment", "Jasa"); the calculation maps it to a configured category.
+  categoryLabel String?  @map("category_label")
+  uom           String   @default("Unit")
+  quantity      Decimal  @db.Decimal(12, 3)
+  note          String?
+
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, position])
+  @@map("request_items")
 }

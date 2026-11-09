@@ -16,7 +16,7 @@ import { ROLES } from "@/domain/access/roles";
 afterEach(() => clearPermissionOverrides());
 
 describe("permission categories", () => {
-  it("has the ten categories in the agreed order", () => {
+  it("has the eleven categories in the agreed order", () => {
     expect(PERMISSION_CATEGORIES.map((category) => category.title)).toEqual([
       "Dashboard Access",
       "User & Role Management",
@@ -25,6 +25,7 @@ describe("permission categories", () => {
       "Request, BOQ, RFQ & Handoffs",
       "Master data, Principals, Customers & PICs",
       "Sales pipeline & Targets",
+      "Calculation & Quotation",
       "Finance & Crosscheck",
       "Reports & Analytics",
       "Audit, System & Configuration",

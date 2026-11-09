@@ -32,6 +32,9 @@ const nextConfig: NextConfig = {
   allowedDevOrigins,
   // Self-contained server bundle used by the production Docker image.
   output: "standalone",
+  // The PDF renderer (quotations, D-088) loads its layout engine and fonts at run time: it stays a plain Node package, traced into the
+  // standalone output, instead of being bundled.
+  serverExternalPackages: ["@react-pdf/renderer"],
   // AGENTS.md is this project's engineering charter; keep `next dev` from
   // inserting its managed agent-rules block into it.
   agentRules: false,

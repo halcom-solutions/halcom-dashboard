@@ -934,7 +934,7 @@ test.describe("account", () => {
     const user = await context.newPage();
     // A password the administrator chose is replaced at the gate, which carries the same form as the Account page (T-9).
     await signInAs(user, email, first);
-    await expect(user.getByRole("heading", { name: "Choose your own password" })).toBeVisible();
+    await expect(user.getByRole("heading", { name: "Ganti kata sandi bawaan Anda" })).toBeVisible();
 
     await user.getByLabel("Current password").fill("not-the-current-password");
     await user.getByLabel("New password", { exact: true }).fill(second);

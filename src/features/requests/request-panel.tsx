@@ -16,6 +16,9 @@ import { type RequestDetail } from "@/server/requests/queries";
 import { getTeamSetting } from "@/server/settings/team-settings";
 import { listAssignablePics, listPicAssignments } from "@/server/pics/service";
 import { picTeamOf, PIC_TEAM_LABELS } from "@/domain/pics/teams";
+import { distributorLabel, paymentTermsLabel } from "@/domain/distributors/payment";
+import { AssignDistributorForm } from "@/features/distributors/distributor-forms";
+import { listAssignableDistributors } from "@/server/distributors/service";
 import { DeleteRequest } from "./delete-request";
 import { EmailDialog } from "./email-dialog";
 import { Fact } from "./fact";
@@ -46,6 +49,8 @@ export async function RequestPanel({ request, viewer, inProject = false, openEma
   const emailSetting = request.type === "PO" ? await getTeamSetting(getDb(), "SALES") : setting;
   // PICs are the people tickets are handed to; the shared SOA / Purchasing account only records who clicked.
   const [pics, assignments] = await Promise.all([mayWork ? listAssignablePics(getDb(), viewer, request.type) : [], listPicAssignments(getDb(), viewer, request.id)]);
+  // Only an RFQ names a distributor; Purchasing picks it from the active ones.
+  const distributors = mayWork && request.type === "RFQ" ? await listAssignableDistributors(getDb(), viewer) : [];
   // Only a superadmin or an admin corrects the requester, from the active accounts (the one now on the request is kept in the list even if it was deactivated).
   const people = can(viewer.role, "requests.edit-dates") ? await requesterChoices(request) : [];
   const sla = slaOf({ createdAt: request.createdAt, status: request.status, completedAt: request.completedAt, history: request.statusHistory, range: setting.sla, now: new Date() });
@@ -83,6 +88,18 @@ export async function RequestPanel({ request, viewer, inProject = false, openEma
                 <span className="text-muted-foreground">Unassigned</span>
               )}
             </Fact>
+            {request.type === "RFQ" ? (
+              <Fact label="Distributor">
+                {request.distributor ? (
+                  <>
+                    {distributorLabel(request.distributor)} · {paymentTermsLabel(request.distributor)}
+                    {request.distributor.isActive ? null : <span className="text-muted-foreground"> (nonaktif)</span>}
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">Belum dipilih</span>
+                )}
+              </Fact>
+            ) : null}
             {inProject ? null : (
               <Fact label="Project">
                 <Link href={`${PROJECTS_PATH}/${request.project.code}`} className="text-primary underline-offset-4 hover:underline">
@@ -163,6 +180,30 @@ export async function RequestPanel({ request, viewer, inProject = false, openEma
           </CardHeader>
           <CardContent>
             <AssignPicForm requestId={request.id} current={request.picId ?? ""} pics={pics} teamLabel={PIC_TEAM_LABELS[picTeamOf(request.type)]} />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {mayWork && request.type === "RFQ" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              <h3>Distributor</h3>
+            </CardTitle>
+            <CardDescription>Distributor yang dituju RFQ ini. Jenis pembayarannya mengikuti data distributor. Perubahan tercatat di audit log.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AssignDistributorForm
+              requestId={request.id}
+              current={request.distributorId ?? ""}
+              options={[
+                ...distributors.map((d) => ({ id: d.id, label: `${distributorLabel(d)} · ${paymentTermsLabel(d)}` })),
+                // A distributor that was turned off after it was chosen stays visible, so saving does not silently clear it.
+                ...(request.distributorId && !distributors.some((d) => d.id === request.distributorId) && request.distributor
+                  ? [{ id: request.distributorId, label: `${distributorLabel(request.distributor)} (nonaktif)` }]
+                  : []),
+              ]}
+            />
           </CardContent>
         </Card>
       ) : null}

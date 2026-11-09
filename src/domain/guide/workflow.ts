@@ -446,11 +446,15 @@ export const GUIDE_NODES: readonly GuideNode[] = [
       steps: [
         "Buka RFQ requests dan buka request baru tersebut.",
         "Di kartu PIC, pilih PIC lalu pilih Save PIC.",
+        "Di kartu Distributor, pilih distributor yang dituju RFQ ini lalu simpan. Jenis pembayarannya (CBD, COD, atau TOP) ikut tampil. Distributor baru ditambahkan di menu Distributors.",
         "Buka RFQ board dan seret kartunya dari Submitted ke In progress.",
       ],
-      editable: ["PIC", "Request status"],
+      editable: ["PIC", "Distributor", "Request status"],
       handoff: "Requester dan Sales PIC proyek diberi tahu setiap kali status berubah.",
-      links: [{ label: "RFQ requests", href: "/requests/rfq", anyOf: ["requests.view"] }],
+      links: [
+        { label: "RFQ requests", href: "/requests/rfq", anyOf: ["requests.view"] },
+        { label: "Distributors", href: "/distributors", anyOf: ["distributors.manage"] },
+      ],
     },
   },
   {

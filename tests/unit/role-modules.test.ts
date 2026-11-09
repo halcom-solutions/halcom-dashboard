@@ -15,7 +15,7 @@ describe("what each operational role may do", () => {
 
   it("gives Purchasing the RFQ and PO work, the right to raise an RFQ, and the shared views, and no way to create projects, BOQs or POs or edit projects", () => {
     expect(sorted(permissionsFor("PURCHASING"))).toEqual(
-      ["dashboard.purchasing.view", "dashboard.shared.view", "projects.bulk-update", "projects.edit.principal", "projects.view", "requests.create.rfq", "requests.view", "requests.work.purchasing"].sort(),
+      ["dashboard.purchasing.view", "dashboard.shared.view", "distributors.manage", "projects.bulk-update", "projects.edit.principal", "projects.view", "requests.create.rfq", "requests.view", "requests.work.purchasing"].sort(),
     );
     expect(can("PURCHASING", "requests.create")).toBe(false);
     expect(can("PURCHASING", "projects.create")).toBe(false);

@@ -47,6 +47,7 @@ export const BACKUPS_PATH = "/admin/backups";
 export const SETTINGS_PATH = "/admin/settings";
 export const MASTER_DATA_PATH = "/admin/master-data";
 export const PICS_PATH = "/admin/pics";
+export const DISTRIBUTORS_PATH = "/distributors";
 export const LOCKOUTS_PATH = "/admin/lockouts";
 export const PROJECTS_PATH = "/projects";
 export const REQUESTS_PATH = "/requests";
@@ -83,6 +84,7 @@ const MODULE_LINKS: readonly ModuleLink[] = [
   // Purchasing works RFQ and PO requests (confirmed 2026-10-18); BOQ requests are not theirs. Its menu is focused: its dashboard and these two lists.
   { href: `${REQUESTS_PATH}/rfq`, label: "RFQ requests", group: "work", icon: "rfq", permission: "requests.view", hiddenFor: ["SALES", "SOA"], labels: { PURCHASING: "RFQ requests" } },
   { href: `${REQUESTS_PATH}/po`, label: "PO requests", group: "work", icon: "po", permission: "requests.view", hiddenFor: ["SALES", "SOA"] },
+  { href: DISTRIBUTORS_PATH, label: "Distributors", group: "work", icon: "customers", permission: "distributors.manage" },
   { href: NEW_REQUEST_PATH, label: "New request", group: "work", icon: "new", permission: "requests.create", hiddenFor: ["SALES"] },
   { href: HANDOFFS_PATH, label: "Purchasing handoff", group: "work", icon: "handoff", permission: "handoffs.view" },
   { href: TECHNICAL_REPORTS_PATH, label: "Technical reports", group: "work", icon: "reports", permission: "reports.technical.view" },

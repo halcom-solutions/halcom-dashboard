@@ -219,6 +219,31 @@ model Principal {
   @@map("principals")
 }
 
+// How a distributor is paid. Keep in sync with src/domain/distributors/payment.ts.
+enum PaymentType {
+  CBD
+  COD
+  TOP
+}
+
+// A distributor Purchasing buys from, kept by Purchasing. `name` is the registered name, `alias` the name people use in daily talk.
+// A distributor is deactivated, never deleted, so the RFQs that name it stay readable. `topDays` is set only for TOP (a database check keeps it so).
+model Distributor {
+  id          String      @id @default(uuid(7)) @db.Uuid
+  name        String
+  nameKey     String      @unique @map("name_key")
+  alias       String?
+  paymentType PaymentType @map("payment_type")
+  topDays     Int?        @map("top_days")
+  isActive    Boolean     @default(true) @map("is_active")
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  requests Request[]
+
+  @@map("distributors")
+}
+
 model SolutionCategory {
   id        String   @id @default(uuid(7)) @db.Uuid
   name      String
@@ -388,6 +413,8 @@ model Request {
   requesterId     String        @map("requester_id") @db.Uuid
   // The PIC working on it. Null means "unassigned", which is shown explicitly (brief §6.3).
   picId           String?       @map("pic_id") @db.Uuid
+  // The distributor an RFQ is sent to, chosen by Purchasing from the Distributors master; only an RFQ carries one.
+  distributorId   String?       @map("distributor_id") @db.Uuid
   // Set on an RFQ or PO that was handed over from a completed BOQ.
   sourceRequestId String?       @map("source_request_id") @db.Uuid
   submissionKey   String?       @unique @map("submission_key")
@@ -413,6 +440,7 @@ model Request {
   requester     User                   @relation("RequestRequester", fields: [requesterId], references: [id], onDelete: Restrict)
   raisedByPic   Pic?                   @relation("RequestRaisedBy", fields: [raisedByPicId], references: [id], onDelete: Restrict)
   pic           Pic?                   @relation(fields: [picId], references: [id], onDelete: Restrict)
+  distributor   Distributor?           @relation(fields: [distributorId], references: [id], onDelete: Restrict)
   picAssignments RequestPicAssignment[]
   flowStoppedBy User?                  @relation("RequestFlowStoppedBy", fields: [flowStoppedById], references: [id], onDelete: Restrict)
   deletedBy     User?                  @relation("RequestDeletedBy", fields: [deletedById], references: [id], onDelete: Restrict)
@@ -424,6 +452,7 @@ model Request {
   @@unique([sourceRequestId, type])
   @@index([projectId])
   @@index([picId])
+  @@index([distributorId])
   @@index([raisedByPicId])
   @@index([requesterId])
   @@index([type, status])

@@ -87,6 +87,7 @@ export const PERMISSION_CATALOG: Record<Permission, Entry> = {
   "masterdata.manage": { category: "master-data", label: "Manage master data", description: "Kelola principal, solution category, dan customer, lalu pakai untuk mengklasifikasikan project." },
   "sections.manage": { category: "master-data", label: "Manage technical sections and SOA phases", description: "Tambah bagian di tab Technical project dan phase yang bisa dipilih SOA; ganti nama atau nonaktifkan." },
   "pics.manage": { category: "master-data", label: "Manage PICs", description: "Tambah, ganti nama, dan nonaktifkan PIC tujuan tiket SOA dan Purchasing." },
+  "distributors.manage": { category: "master-data", label: "Manage distributors", description: "Tambah distributor (nama asli dan alias), atur jenis pembayarannya (CBD, COD, atau TOP dengan jumlah hari), dan nonaktifkan; dipilih pada RFQ." },
   "customers.view": { category: "master-data", label: "View customers", description: "Buka halaman Customers." },
   "customers.rename": { category: "master-data", label: "Rename and merge customers", description: "Perbaiki nama customer yang salah ketik, atau gabungkan dua nama perusahaan yang sama (PNP dan Politeknik Negeri Padang)." },
   "industries.manage": { category: "master-data", label: "Edit the list of industries", description: "Tambah, ganti nama, dan hapus industri yang bisa diberikan ke customer (bawaan: Admin dan Superadmin)." },

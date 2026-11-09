@@ -49,6 +49,7 @@ export const PERMISSION_CATALOG: Record<Permission, Entry> = {
   "users.manage": { category: "user-role-management", label: "Manage users", description: "Buat akun, ubah peran, nonaktifkan, dan reset kata sandi pengguna operasional." },
   "users.manage-privileged": { category: "user-role-management", label: "Manage admin accounts", description: "Buat dan ubah akun Admin dan Superadmin. Hanya Superadmin yang bisa memegangnya." },
   "logins.manage": { category: "user-role-management", label: "Unlock sign-ins", description: "Lihat akun dan alamat yang terkunci karena terlalu sering salah kata sandi, dan buka kuncinya. Hanya Superadmin yang bisa memegangnya." },
+  "users.impersonate": { category: "user-role-management", label: "View as another user", description: "Masuk sebagai akun lain (bukan Admin atau Superadmin) untuk memeriksa tampilannya. Hanya lihat, selama 1 jam, dan tercatat di audit log. Hanya Superadmin yang bisa memegangnya." },
   "users.change-email": { category: "user-role-management", label: "Change user e-mail", description: "Ubah alamat email untuk masuk. Hanya Superadmin yang bisa memegangnya." },
 
   "permissions.view": { category: "permission-management", label: "View permissions", description: "Buka halaman Permissions dan lihat hak akses tiap peran." },

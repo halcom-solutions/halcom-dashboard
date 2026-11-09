@@ -1051,3 +1051,13 @@ The preview of each template (filled with sample data) is no longer a long block
 
 **Rules.** The two names must differ (Caddy refuses a duplicate address); `deploy-vps.sh` says so before it changes anything and also validates the file with `caddy:2`. A session cookie belongs to one host, so people sign in again when they switch. To make the VPS host name the main address for a while (links in the e-mail text), swap `DOMAIN` and `FALLBACK_DOMAIN` in `/opt/halcom/.env`.
 
+
+## D-083: A superadmin can view the application as another user, read only (2026-11-12)
+
+**Asked by the owner**, to check what a user sees without asking for their password.
+
+- **Who and whom.** Only a superadmin (`users.impersonate`, superadmin-only and locked like the other superadmin permissions). The target must be an active account that is not Admin or Superadmin, and not the superadmin's own. The button is "Lihat sebagai" in the user's Edit window.
+- **How.** The superadmin's session is closed and a session of the target is opened that names the superadmin (`sessions.impersonator_id`, migration `20261112100000_session_impersonator`). It lasts one hour and is never renewed. It dies with the target (deactivated, password reset) or with the superadmin (deactivated, deleted). "Keluar dari mode ini" in the banner ends it and opens a new normal session for the superadmin without asking for the password: the server knows who opened it.
+- **Read only.** `requireUser` refuses every server action made through such a session (the `next-action` header), so no form can change data as someone else. The first-sign-in password gate does not apply while viewing. Pages, lists and exports are read as the target sees them.
+- **Audit.** `user.impersonation_started` and `user.impersonation_ended`, with the superadmin as actor and the viewed user as the entity. Nothing else is written, since nothing can be changed.
+- **Not done:** viewing as an Admin or another Superadmin; a reason field when opening; making changes on behalf of someone.

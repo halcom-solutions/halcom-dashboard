@@ -62,7 +62,7 @@ describe("the SOA dashboard numbers match the stored requests", () => {
 
     const { metrics } = await getTeamDashboard(db, as(soa, "SOA"), "SOA");
 
-    const count = (where: Record<string, unknown>) => db.request.count({ where: { type: "BOQ", project: { deletedAt: null }, ...where } });
+    const count = (where: Record<string, unknown>) => db.request.count({ where: { type: "BOQ", deletedAt: null, project: { deletedAt: null }, ...where } });
     await within(() => count({ status: { in: ["SUBMITTED", "IN_PROGRESS", "WAITING_FOR_SALES", "REVISION"] } }), metrics.open);
     await within(() => count({ status: "SUBMITTED" }), metrics.backlog);
     await within(() => count({ status: "IN_PROGRESS" }), metrics.inProgress);
@@ -268,7 +268,7 @@ describe("the technical report", () => {
     const month = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 7);
     expect(rows[0]).toMatchObject({ month });
     const start = new Date(`${month}-01T00:00:00+07:00`);
-    expect(rows[0]!.received).toBe(await db.request.count({ where: { type: "BOQ", createdAt: { gte: start }, project: { deletedAt: null } } }));
+    expect(rows[0]!.received).toBe(await db.request.count({ where: { type: "BOQ", deletedAt: null, createdAt: { gte: start }, project: { deletedAt: null } } }));
     expect(rows[0]!.completed).toBeGreaterThanOrEqual(1);
     await expect(getTechnicalReport(db, as(purchasing, "PURCHASING"))).rejects.toThrow(/Forbidden/);
     await expect(getTechnicalReport(db, as(sales, "SALES"))).rejects.toThrow(/Forbidden/);

@@ -2,30 +2,21 @@ import { z } from "zod";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { can } from "@/domain/access/permissions";
 import type { Role } from "@/domain/access/roles";
-import { parsePayment } from "@/domain/distributors/payment";
-import { mapSheetColumns, parseStatus, STATUS_INACTIVE, type SheetKey } from "@/domain/distributors/sheet";
-import { nameKey } from "@/domain/projects/pipeline";
+import { parseTermsText, sameTerms, termsLabel, type PaymentTerms } from "@/domain/distributors/payment";
+import { mapSheetColumns, parseStatus, STATUS_ACTIVE, STATUS_INACTIVE, type SheetKey } from "@/domain/distributors/sheet";
+import { cleanName, nameKey } from "@/domain/projects/pipeline";
 import { readXlsx } from "@/server/import/xlsx-reader";
 import { createDistributor, updateDistributor } from "./service";
 
 type Actor = { id: string; role: Role };
 
-export type ImportRow = { row: number; name: string; action: "add" | "update" | "same" | "error"; message?: string };
+/** One checked row of the sheet. `changes` lists what an update would change, as "Pembayaran: CBD → CBD; TOP 30". */
+export type ImportRow = { row: number; name: string; action: "add" | "update" | "same" | "error"; message?: string; changes?: string[] };
 export type DistributorImportResult =
-  | { ok: true; committed: boolean; added: number; updated: number; unchanged: number; errors: number; rows: ImportRow[] }
+  | { ok: true; committed: boolean; fileName: string; added: number; updated: number; unchanged: number; errors: number; rows: ImportRow[] }
   | { ok: false; message: string };
 
-type Planned = {
-  row: number;
-  kind: "add" | "update";
-  id: string | null;
-  name: string;
-  alias: string;
-  paymentType: string;
-  topDays: number | null;
-  /** null: keep (update) or active (add). */
-  isActive: boolean | null;
-};
+type Planned = { row: number; kind: "add" | "update"; id: string | null; name: string; alias: string; terms: PaymentTerms[]; isActive: boolean | null };
 
 /**
  * Reads an uploaded sheet in the layout of `src/domain/distributors/sheet.ts` and adds the rows without a Distributor ID and changes the
@@ -34,7 +25,7 @@ type Planned = {
  * shortcut: rows are written one by one (each with its own audit entry), not in one transaction; a failure halfway (a name taken
  * at the same moment) leaves the earlier rows saved and is reported per row. Upload again after fixing: finished rows read as unchanged.
  */
-export async function importDistributors(db: PrismaClient, actor: Actor, input: { bytes: Uint8Array; commit: boolean }): Promise<DistributorImportResult> {
+export async function importDistributors(db: PrismaClient, actor: Actor, input: { bytes: Uint8Array; fileName?: string; commit: boolean }): Promise<DistributorImportResult> {
   if (!can(actor.role, "distributors.manage")) return { ok: false, message: "Anda tidak diizinkan melakukan ini." };
   const read = readXlsx(input.bytes);
   if (!read.ok) return { ok: false, message: read.message };
@@ -43,8 +34,10 @@ export async function importDistributors(db: PrismaClient, actor: Actor, input: 
   const { index } = columns;
   const cell = (cells: string[], key: SheetKey) => (index[key] === undefined ? "" : (cells[index[key]!] ?? "").trim());
 
-  const existing = await db.distributor.findMany({ select: { id: true, name: true, nameKey: true, alias: true, paymentType: true, topDays: true, isActive: true } });
-  const byId = new Map(existing.map((d) => [d.id, d]));
+  const existing = await db.distributor.findMany({
+    select: { id: true, name: true, nameKey: true, alias: true, isActive: true, terms: { select: { paymentType: true, topDays: true }, orderBy: [{ position: "asc" }, { id: "asc" }] } },
+  });
+  const byId = new Map(existing.map((d) => [d.id, { ...d, terms: d.terms.map((t) => ({ paymentType: t.paymentType, topDays: t.paymentType === "TOP" ? t.topDays : null })) as PaymentTerms[] }]));
   const owners = new Map(existing.map((d) => [d.nameKey, d.id]));
   const seenKeys = new Map<string, number>();
 
@@ -68,32 +61,32 @@ export async function importDistributors(db: PrismaClient, actor: Actor, input: 
     if (owner !== undefined && owner !== current?.id) return bad(current ? "Nama itu sudah dipakai distributor lain." : "Distributor dengan nama ini sudah ada. Untuk mengubahnya, isi Distributor ID dari hasil export.");
     seenKeys.set(key, row);
 
-    const payment = parsePayment(cell(cells, "payment").toUpperCase(), cell(cells, "topDays"));
+    const payment = parseTermsText(cell(cells, "payment"), cell(cells, "topDays"));
     if (!payment.ok) return bad(payment.message);
     const status = parseStatus(cell(cells, "status"));
-    if (status === "invalid") return bad(`Status harus "Aktif" atau "${STATUS_INACTIVE}".`);
+    if (status === "invalid") return bad(`Status harus "${STATUS_ACTIVE}" atau "${STATUS_INACTIVE}".`);
 
-    const planned: Planned = { row, kind: current ? "update" : "add", id: current?.id ?? null, name, alias: cell(cells, "alias"), paymentType: payment.paymentType, topDays: payment.topDays, isActive: status };
-    const unchanged =
-      current &&
-      current.name === name &&
-      (current.alias ?? "") === planned.alias.replace(/\s+/g, " ") &&
-      current.paymentType === payment.paymentType &&
-      current.topDays === payment.topDays &&
-      (status === null || status === current.isActive);
+    const planned: Planned = { row, kind: current ? "update" : "add", id: current?.id ?? null, name, alias: cleanName(cell(cells, "alias")), terms: payment.terms, isActive: status };
+    const changes: string[] = [];
+    if (current) {
+      if (current.name !== name) changes.push(`Nama: ${current.name} → ${name}`);
+      if ((current.alias ?? "") !== planned.alias) changes.push(`Alias: ${current.alias ?? "–"} → ${planned.alias || "–"}`);
+      if (current.terms.length !== payment.terms.length || payment.terms.some((term, i) => !sameTerms(term, current.terms[i]!))) changes.push(`Pembayaran: ${termsLabel(current.terms)} → ${termsLabel(payment.terms)}`);
+      if (status !== null && status !== current.isActive) changes.push(`Status: ${current.isActive ? STATUS_ACTIVE : STATUS_INACTIVE} → ${status ? STATUS_ACTIVE : STATUS_INACTIVE}`);
+    }
     plan.push(planned);
-    rows.push({ row, name, action: unchanged ? "same" : planned.kind });
+    rows.push({ row, name, action: current && changes.length === 0 ? "same" : planned.kind, ...(current ? { changes } : {}) });
   });
 
   const count = (action: ImportRow["action"]) => rows.filter((r) => r.action === action).length;
-  const summary = () => ({ added: count("add"), updated: count("update"), unchanged: count("same"), errors: count("error") });
+  const summary = () => ({ fileName: input.fileName ?? "", added: count("add"), updated: count("update"), unchanged: count("same"), errors: count("error") });
   if (rows.length === 0) return { ok: false, message: "Sheet tidak berisi baris data." };
   if (count("error") > 0 || !input.commit) return { ok: true, committed: false, ...summary(), rows };
 
   for (const planned of plan) {
     const entry = rows.find((r) => r.row === planned.row)!;
     if (entry.action === "same") continue;
-    const fields = { name: planned.name, alias: planned.alias, paymentType: planned.paymentType, topDays: planned.topDays };
+    const fields = { name: planned.name, alias: planned.alias, terms: planned.terms };
     const saved =
       planned.kind === "add"
         ? await createDistributor(db, actor, fields)

@@ -423,6 +423,8 @@ export function NextStepForm({ sourceId, nextType, hasDecision }: { sourceId: st
  * SOA or Purchasing hands the request to one of their PICs: an operational assignee, not a login account. On an RFQ the same form
  * (one Save) also names the distributor, picked from a searchable list.
  */
+export type DistributorChoice = { id: string; name: string; terms: { id: string; label: string }[] };
+
 export function AssignPicForm({
   requestId,
   current,
@@ -434,12 +436,16 @@ export function AssignPicForm({
   current: string;
   pics: readonly PicOption[];
   teamLabel: string;
-  distributor?: { current: string; options: readonly MasterOption[] };
+  distributor?: { current: string; currentTermId: string; currentTermLabel: string; options: readonly DistributorChoice[] };
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(assignPicAction, null);
+  // The distributor and its payment terms go together: choosing another distributor offers its terms, the first (default) preselected.
+  const [distributorId, setDistributorId] = useState(distributor?.current ?? "");
+  const [termId, setTermId] = useState(distributor?.currentTermId ?? "");
+  const chosen = distributor?.options.find((option) => option.id === distributorId);
 
   return (
-    <form key={`${current}|${distributor?.current ?? ""}`} action={formAction} className="grid gap-3 sm:grid-cols-2 sm:items-start">
+    <form key={`${current}|${distributor?.current ?? ""}|${distributor?.currentTermLabel ?? ""}`} action={formAction} className="grid gap-3 sm:grid-cols-2 sm:items-start">
       <input type="hidden" name="requestId" value={requestId} />
       <Field id={`pic-${requestId}`} label="PIC" hint={pics.length === 0 ? `No active ${teamLabel} PIC yet. An administrator adds them under PICs.` : undefined}>
         <NativeSelect id={`pic-${requestId}`} name="picId" defaultValue={current}>
@@ -457,7 +463,32 @@ export function AssignPicForm({
           label="Distributor"
           hint={distributor.options.length === 0 ? "Belum ada distributor aktif. Tambahkan di menu Distributors." : "Ketik nama, alias, atau pembayaran untuk mencari. Tombol X mengosongkan."}
         >
-          <SearchSelect id={`distributor-${requestId}`} name="distributorId" label="distributor" options={distributor.options} defaultValue={distributor.current} placeholder="Cari distributor" />
+          <SearchSelect
+            id={`distributor-${requestId}`}
+            name="distributorId"
+            label="distributor"
+            options={distributor.options.map((option) => ({ id: option.id, name: option.name }))}
+            value={distributorId}
+            onChange={(id) => {
+              setDistributorId(id);
+              const next = distributor.options.find((option) => option.id === id);
+              setTermId(next ? (id === distributor.current ? distributor.currentTermId : (next.terms[0]?.id ?? "")) : "");
+            }}
+            placeholder="Cari distributor"
+          />
+        </Field>
+      ) : null}
+      {distributor && distributorId !== "" ? (
+        <Field id={`terms-${requestId}`} label="Syarat bayar" hint="Pilihan syarat bayar milik distributor ini; yang pertama adalah default. Disalin ke RFQ ini.">
+          <NativeSelect id={`terms-${requestId}`} name="termId" value={termId} onChange={(event) => setTermId(event.target.value)}>
+            {/* The terms this RFQ already has, when the distributor no longer lists them: kept unless another is chosen. */}
+            {distributorId === distributor.current && distributor.currentTermId === "" && distributor.currentTermLabel ? <option value="">Tetap: {distributor.currentTermLabel} (tidak terdaftar lagi)</option> : null}
+            {(chosen?.terms ?? []).map((term) => (
+              <option key={term.id} value={term.id}>
+                {term.label}
+              </option>
+            ))}
+          </NativeSelect>
         </Field>
       ) : null}
       <div className="sm:col-span-2">

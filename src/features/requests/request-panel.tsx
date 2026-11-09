@@ -16,13 +16,13 @@ import { type RequestDetail } from "@/server/requests/queries";
 import { getTeamSetting } from "@/server/settings/team-settings";
 import { listAssignablePics, listPicAssignments } from "@/server/pics/service";
 import { picTeamOf, PIC_TEAM_LABELS } from "@/domain/pics/teams";
-import { distributorLabel, paymentTermsLabel } from "@/domain/distributors/payment";
+import { distributorLabel, paymentTermsLabel, sameTerms } from "@/domain/distributors/payment";
 import { listAssignableDistributors } from "@/server/distributors/service";
 import { DeleteRequest } from "./delete-request";
 import { EmailDialog } from "./email-dialog";
 import { Fact } from "./fact";
 import { jakartaDay } from "@/domain/requests/metrics";
-import { AssignPicForm, NextStepForm, RequestDatesForm, RevisionForm } from "./forms";
+import { AssignPicForm, type DistributorChoice, NextStepForm, RequestDatesForm, RevisionForm } from "./forms";
 import { formatDateOnly } from "./format";
 import { SlaBadge } from "./sla-badge";
 import { StatusBadge, TypeBadge } from "./status-badges";
@@ -52,6 +52,19 @@ export async function RequestPanel({ request, viewer, inProject = false, openEma
   const distributors = mayWork && request.type === "RFQ" ? await listAssignableDistributors(getDb(), viewer) : [];
   // Only a superadmin or an admin corrects the requester, from the active accounts (the one now on the request is kept in the list even if it was deactivated).
   const people = can(viewer.role, "requests.edit-dates") ? await requesterChoices(request) : [];
+  // The distributors Purchasing can pick, each with its terms; and where this RFQ stands now. A distributor turned off after it was chosen stays in the
+  // list (without terms to switch to), so saving does not silently clear it; terms the distributor no longer lists are kept until another is chosen.
+  const choices: DistributorChoice[] = distributors.map((d) => ({ id: d.id, name: distributorLabel(d), terms: d.terms.map((term) => ({ id: term.id, label: paymentTermsLabel(term) })) }));
+  if (request.distributorId && request.distributor && !choices.some((choice) => choice.id === request.distributorId)) {
+    choices.push({ id: request.distributorId, name: `${distributorLabel(request.distributor)} (nonaktif)`, terms: [] });
+  }
+  const ownTerms = request.paymentType ? { paymentType: request.paymentType, topDays: request.topDays } : null;
+  const distributorChoice = {
+    current: request.distributorId ?? "",
+    currentTermId: (ownTerms && distributors.find((d) => d.id === request.distributorId)?.terms.find((term) => sameTerms(term, ownTerms))?.id) || "",
+    currentTermLabel: ownTerms ? paymentTermsLabel(ownTerms) : "",
+    options: choices,
+  };
   const sla = slaOf({ createdAt: request.createdAt, status: request.status, completedAt: request.completedAt, history: request.statusHistory, range: setting.sla, now: new Date() });
   const email = canSeeEmail(viewer.role, request.type, request.source !== null)
     ? buildRequestEmail(request, { subject: emailSetting.emailSubject, body: emailSetting.emailBody, sla: setting.sla, dueAt: sla.dueAt, to: emailSetting.emailTo, cc: emailSetting.emailCc })
@@ -91,7 +104,8 @@ export async function RequestPanel({ request, viewer, inProject = false, openEma
               <Fact label="Distributor">
                 {request.distributor ? (
                   <>
-                    {distributorLabel(request.distributor)} · {paymentTermsLabel(request.distributor)}
+                    {distributorLabel(request.distributor)}
+                    {request.paymentType ? ` · ${paymentTermsLabel({ paymentType: request.paymentType, topDays: request.topDays })}` : ""}
                     {request.distributor.isActive ? null : <span className="text-muted-foreground"> (nonaktif)</span>}
                   </>
                 ) : (
@@ -184,20 +198,7 @@ export async function RequestPanel({ request, viewer, inProject = false, openEma
               current={request.picId ?? ""}
               pics={pics}
               teamLabel={PIC_TEAM_LABELS[picTeamOf(request.type)]}
-              distributor={
-                request.type === "RFQ"
-                  ? {
-                      current: request.distributorId ?? "",
-                      options: [
-                        ...distributors.map((d) => ({ id: d.id, name: `${distributorLabel(d)} · ${paymentTermsLabel(d)}` })),
-                        // A distributor that was turned off after it was chosen stays visible, so saving does not silently clear it.
-                        ...(request.distributorId && !distributors.some((d) => d.id === request.distributorId) && request.distributor
-                          ? [{ id: request.distributorId, name: `${distributorLabel(request.distributor)} (nonaktif)` }]
-                          : []),
-                      ],
-                    }
-                  : undefined
-              }
+              distributor={request.type === "RFQ" ? distributorChoice : undefined}
             />
           </CardContent>
         </Card>

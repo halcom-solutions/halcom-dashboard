@@ -674,7 +674,7 @@ const REQUEST_DETAIL = {
   project: true,
   requester: { select: { name: true, role: true, email: true } },
   pic: { select: { name: true, isActive: true } },
-  distributor: { select: { name: true, alias: true, paymentType: true, topDays: true, isActive: true } },
+  distributor: { select: { name: true, alias: true, isActive: true } },
   // The SOA person who raised it, when SOA did (SOA signs in with one shared account).
   raisedByPic: { select: { name: true } },
   source: { select: { code: true } },

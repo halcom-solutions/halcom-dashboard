@@ -126,7 +126,7 @@ export async function assignPicAction(_previous: FormState, formData: FormData):
   if (!result.ok) return { ok: false, message: result.message };
   let message = result.value.picId ? "PIC saved." : "PIC cleared.";
   if (formData.has("distributorId")) {
-    const distributor = await assignRequestDistributor(getDb(), actor, { requestId, distributorId: text(formData, "distributorId") ?? "" });
+    const distributor = await assignRequestDistributor(getDb(), actor, { requestId, distributorId: text(formData, "distributorId") ?? "", termId: text(formData, "termId") ?? "" });
     if (!distributor.ok) return { ok: false, message: `PIC tersimpan, tetapi distributor gagal: ${distributor.message}` };
     message = distributor.value.distributorId ? "PIC dan distributor tersimpan." : "PIC tersimpan, distributor dikosongkan.";
   }

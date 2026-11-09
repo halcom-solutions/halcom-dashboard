@@ -65,7 +65,11 @@ test("Purchasing keeps the distributor list, exports it, and names a distributor
   await page.goto(`/request/${rfq}`);
   await expect(page.getByText("Belum dipilih").first()).toBeVisible();
   await expect(async () => {
-    await page.getByLabel("Distributor", { exact: true }).selectOption({ label: `${name} (${alias}) · TOP 14 hari` });
+    // A searchable box: typing the alias (not the whole name) lists the distributor, and picking it fills the box.
+    const box = page.getByLabel("Distributor", { exact: true });
+    await box.fill(alias);
+    await page.getByRole("listbox", { name: "distributor options" }).getByRole("option", { name: `${name} (${alias}) · TOP 14 hari` }).click();
+    await expect(box).toHaveValue(`${name} (${alias}) · TOP 14 hari`);
     await page.getByRole("button", { name: "Simpan distributor" }).click();
     await expect(page.getByText("Distributor tersimpan.")).toBeVisible({ timeout: 10_000 });
   }).toPass({ timeout: 60_000 });

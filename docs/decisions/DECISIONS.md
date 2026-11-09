@@ -1044,3 +1044,10 @@ The preview of each template (filled with sample data) is no longer a long block
 - **Same words as the alerts.** The overdue and close-to-deadline concerns are the states that raise the Danger and Warning notifications (D-083), so Management sees on this page what the team was told.
 - **Removed:** `ROLE_DASHBOARDS` and `RoleQueue` (the placeholder and the plain list). No migration.
 - **Not built (asked for in the plan):** a weekly SLA compliance line (the six months table is the trend for now), Sales target attainment and pipeline conversion on this page (they stay on Sales pipeline and Targets), and thresholds that a superadmin can change.
+
+## D-086: The domain and the VPS host name are both served (2026-11-09)
+
+**Why.** The domain `halcom-dashboard.site` was suspended at the registrar, and the application was unreachable until `DOMAIN` was changed by hand. `deploy/Caddyfile` now has one site block per address, sharing one snippet (headers, compression, proxy, log): `{$DOMAIN}` (main, also `APP_BASE_URL`) and `{$FALLBACK_DOMAIN}` (default `srv2127418.hstgr.cloud`, the host name Hostinger keeps for the VPS). Each gets its own certificate, so a failure on one address (suspension, DNS, a certificate error) does not touch the other. The `www` redirect is fixed to the company domain, since the VPS host name has no `www`.
+
+**Rules.** The two names must differ (Caddy refuses a duplicate address); `deploy-vps.sh` says so before it changes anything and also validates the file with `caddy:2`. A session cookie belongs to one host, so people sign in again when they switch. To make the VPS host name the main address for a while (links in the e-mail text), swap `DOMAIN` and `FALLBACK_DOMAIN` in `/opt/halcom/.env`.
+

@@ -205,7 +205,7 @@ describe("BOQ worksheet (Kemenkebud layout)", () => {
   const row = (cells: Record<number, string>) => headers.map((_, index) => cells[index] ?? "");
   const sheet = {
     headers,
-    rowNumbers: [2, 3, 4, 5, 6, 7],
+    rowNumbers: [2, 3, 4, 5, 6, 7, 40, 62, 92],
     rows: [
       row({ 0: "5", 1: "CCTV" }),
       row({ 0: "5.1", 1: "Hikvision DS-2CD2143G2-LI", 2: "IP Camera 4 MP 2.8mm", 3: "CCTV", 4: "Unit", 5: "2", 6: "2730700", 11: "3194919", 13: "6390000", 16: "Megabintang", 18: "", 19: "TRUE" }),
@@ -213,10 +213,15 @@ describe("BOQ worksheet (Kemenkebud layout)", () => {
       row({ 0: "5.5", 1: "Optional item", 4: "Unit", 5: "1", 19: "FALSE" }),
       row({ 0: "7", 1: "JASA" }),
       row({ 0: "7.1", 1: "Instalasi & Konfigurasi Server Xfusion", 2: "per unit", 3: "Jasa", 4: "Unit", 5: "2", 6: "75000000", 13: "175500000", 19: "TRUE" }),
+      // The old summary block under the table (G34:T93: revenue per item, COGS per vendor, signatures) is no longer used: nothing in the
+      // Nama Barang column, so none of it becomes an item.
+      row({ 15: "1", 16: "Huawei OceanStor Dorado 3000 V7 (Site 1)", 18: "1", 19: "16373194860" }),
+      row({ 16: "Total Revenue", 18: "Incl", 19: "21000000000" }),
+      row({ 16: "Dzaki Yudi Ananda", 19: "Nadirman" }),
     ],
   };
 
-  it("reads items under their group headings, with the rounded selling price per unit, and leaves out what Add excludes", () => {
+  it("reads items under their group headings, with the rounded selling price per unit, and leaves out what Add excludes and the old summary block", () => {
     const result = parseBoqSheet(sheet);
     if (!result.ok) throw new Error(result.message);
     expect(result.skipped).toBe(1);

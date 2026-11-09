@@ -15,6 +15,7 @@ export const PERMISSION_CATEGORIES = [
   { id: "request-workflow", title: "Request, BOQ, RFQ & Handoffs", description: "Mengajukan dan mengerjakan request BOQ, RFQ, dan PO, serta menyerahkan BOQ ke Purchasing." },
   { id: "master-data", title: "Master data, Principals, Customers & PICs", description: "Daftar rujukan project dan request, serta orang tujuan tiket." },
   { id: "sales-pipeline", title: "Sales pipeline & Targets", description: "Target milik salesperson sendiri." },
+  { id: "quotations", title: "Calculation & Quotation", description: "Menyusun calculation dan quotation, memeriksa biaya (Purchasing), dan membaca margin." },
   { id: "finance", title: "Finance & Crosscheck", description: "Membaca nilai project terhadap referensi quotation dan PO." },
   { id: "reports", title: "Reports & Analytics", description: "Laporan operasional dan export-nya." },
   { id: "audit-system", title: "Audit, System & Configuration", description: "Audit log, kondisi sistem, backup, kebijakan SLA, dan tema." },
@@ -95,6 +96,10 @@ export const PERMISSION_CATALOG: Record<Permission, Entry> = {
 
   "targets.edit": { category: "sales-pipeline", label: "Sales targets", description: "Buka halaman Sales targets dan atur target gross profit sendiri." },
 
+  "quotations.view": { category: "quotations", label: "View calculations and quotations", description: "Buka daftar dan isi calculation (revenue, COGS, margin) serta quotation, termasuk PDF-nya." },
+  "quotations.prepare": { category: "quotations", label: "Prepare calculations and quotations", description: "Susun calculation dan quotation untuk project sendiri (Admin: project mana pun), ajukan ke Purchasing, buka kembali, dan tandai opsi yang dipilih customer." },
+  "quotations.review": { category: "quotations", label: "Check calculations (Purchasing)", description: "Lihat calculation yang menunggu Purchasing. Siapa yang menyetujui tiap langkah diatur di konfigurasi Quotation." },
+  "quotations.configure": { category: "quotations", label: "Configure quotations", description: "Atur kategori item, skema pajak (WAPU, Non-WAPU...), langkah persetujuan dan syaratnya, tampilan quotation, dan nomor berikutnya." },
   "finance.crosscheck.view": { category: "finance", label: "Financial crosscheck", description: "Buka halaman Financial crosscheck dan unduh CSV-nya." },
 
   "reports.technical.view": { category: "reports", label: "Technical reports", description: "Buka halaman Technical reports dan unduh export-nya." },

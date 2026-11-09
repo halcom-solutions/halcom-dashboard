@@ -9,16 +9,26 @@ const sorted = (permissions: ReadonlySet<Permission>) => [...permissions].sort()
 describe("what each operational role may do", () => {
   it("gives Finance read access only: values, references and the crosscheck, nothing that changes a record", () => {
     expect(sorted(permissionsFor("FINANCE"))).toEqual(
-      ["dashboard.finance.view", "dashboard.shared.view", "finance.crosscheck.view", "projects.view", "requests.view"].sort(),
+      ["dashboard.finance.view", "dashboard.shared.view", "finance.crosscheck.view", "projects.view", "quotations.view", "requests.view"].sort(),
     );
   });
 
   it("gives Purchasing the RFQ and PO work, the right to raise an RFQ, and the shared views, and no way to create projects, BOQs or POs or edit projects", () => {
     expect(sorted(permissionsFor("PURCHASING"))).toEqual(
-      ["dashboard.purchasing.view", "dashboard.shared.view", "distributors.manage", "projects.bulk-update", "projects.edit.principal", "projects.view", "requests.create.rfq", "requests.view", "requests.work.purchasing"].sort(),
+      ["dashboard.purchasing.view", "dashboard.shared.view", "distributors.manage", "projects.bulk-update", "projects.edit.principal", "projects.view", "quotations.review", "quotations.view", "requests.create.rfq", "requests.view", "requests.work.purchasing"].sort(),
     );
     expect(can("PURCHASING", "requests.create")).toBe(false);
     expect(can("PURCHASING", "projects.create")).toBe(false);
+  });
+
+  it("lets Sales and the administrators prepare calculations, Purchasing check them, and keeps SOA out of the margins (D-088)", () => {
+    for (const role of ["SALES", "ADMIN", "SUPERADMIN"] as const) expect(can(role, "quotations.prepare"), role).toBe(true);
+    for (const role of ["SOA", "PURCHASING", "FINANCE", "MANAGEMENT"] as const) expect(can(role, "quotations.prepare"), role).toBe(false);
+    for (const role of ["PURCHASING", "SUPERADMIN"] as const) expect(can(role, "quotations.review"), role).toBe(true);
+    for (const role of ["SALES", "ADMIN", "SOA", "FINANCE", "MANAGEMENT"] as const) expect(can(role, "quotations.review"), role).toBe(false);
+    expect(can("SOA", "quotations.view")).toBe(false);
+    for (const role of ["ADMIN", "SUPERADMIN"] as const) expect(can(role, "quotations.configure"), role).toBe(true);
+    for (const role of ["SALES", "SOA", "PURCHASING", "FINANCE", "MANAGEMENT"] as const) expect(can(role, "quotations.configure"), role).toBe(false);
   });
 
   it("lets SOA, Sales, Purchasing and the administrators fill in Principals, and only SOA and the administrators the Solution", () => {

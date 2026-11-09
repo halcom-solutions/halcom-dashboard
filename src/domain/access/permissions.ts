@@ -60,7 +60,11 @@ export type Permission =
   | "requests.email"
   | "requests.work.boq"
   | "requests.work.purchasing"
-  | "requests.handover";
+  | "requests.handover"
+  | "quotations.view"
+  | "quotations.prepare"
+  | "quotations.review"
+  | "quotations.configure";
 
 export const ALL_PERMISSIONS: readonly Permission[] = [
   "dashboard.shared.view",
@@ -117,6 +121,10 @@ export const ALL_PERMISSIONS: readonly Permission[] = [
   "requests.work.boq",
   "requests.work.purchasing",
   "requests.handover",
+  "quotations.view",
+  "quotations.prepare",
+  "quotations.review",
+  "quotations.configure",
 ];
 
 /** Permissions a role may never lose or gain through the permission editor, so the editor cannot lock everyone out or hand out the keys. */
@@ -190,8 +198,14 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "requests.work.boq",
     "requests.work.purchasing",
     "requests.handover",
+    // Admin reads every calculation and can prepare one for any project, and keeps the rules (categories, tax schemes, approval steps,
+    // the quotation's look) with the Superadmin. Approving is for the people the steps name.
+    "quotations.view",
+    "quotations.prepare",
+    "quotations.configure",
   ]),
-  SALES: new Set<Permission>(["dashboard.shared.view", ownDashboardPermission("SALES"), ...READ_WORK, ...SALES_WORK, "targets.edit", "customers.view", "customers.edit"]),
+  // Sales prepare the calculation and the quotation of their own projects (D-088).
+  SALES: new Set<Permission>(["dashboard.shared.view", ownDashboardPermission("SALES"), ...READ_WORK, ...SALES_WORK, "targets.edit", "customers.view", "customers.edit", "quotations.view", "quotations.prepare"]),
   SOA: new Set<Permission>([
     "dashboard.shared.view",
     ownDashboardPermission("SOA"),
@@ -228,10 +242,13 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     // Purchasing fills in the Principal of a project from the Excel sheet (only that column), like SOA and Sales.
     "projects.edit.principal",
     "projects.bulk-update",
+    // Purchasing checks the cost side of every calculation (and may correct the buy prices) before a quotation goes out (D-088).
+    "quotations.view",
+    "quotations.review",
   ]),
   // Finance reads: values, quotation and PO references, audit history. Nothing here lets Finance change a project or a request.
-  FINANCE: new Set<Permission>(["dashboard.shared.view", ownDashboardPermission("FINANCE"), "finance.crosscheck.view", ...READ_WORK]),
-  MANAGEMENT: new Set<Permission>(["dashboard.shared.view", ownDashboardPermission("MANAGEMENT"), "finance.crosscheck.view", "reports.technical.view", ...READ_WORK]),
+  FINANCE: new Set<Permission>(["dashboard.shared.view", ownDashboardPermission("FINANCE"), "finance.crosscheck.view", ...READ_WORK, "quotations.view"]),
+  MANAGEMENT: new Set<Permission>(["dashboard.shared.view", ownDashboardPermission("MANAGEMENT"), "finance.crosscheck.view", "reports.technical.view", ...READ_WORK, "quotations.view"]),
 };
 
 /** The permissions a role has when nobody has changed anything: the rules above. */

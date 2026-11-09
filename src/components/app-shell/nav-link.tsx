@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
+  Calculator,
   DatabaseBackup,
   FileSearch,
   FileSpreadsheet,
@@ -53,6 +54,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   pics: UserRoundCheck,
   lockouts: LockKeyhole,
   crosscheck: Scale,
+  quotations: Calculator,
 };
 
 /** These two are parents of other menu entries, so only an exact match marks them active. */

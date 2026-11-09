@@ -42,6 +42,8 @@ import { requirePermission } from "@/server/auth/current-user";
 import { listProjectActions, listProjectChanges } from "@/server/projects/queries";
 import { isOpen } from "@/domain/requests/status";
 import { listMasterRecords } from "@/server/masterdata/service";
+import { ProjectQuotations } from "@/features/quotations/project-quotations";
+import { listProjectQuotations } from "@/server/quotations/queries";
 import { getProjectByCode, listPicOptions, listSoaPhases, listProjectRequestDetails, listRequests, listSalesPeopleOptions } from "@/server/requests/queries";
 
 export default function ProjectPage({ params, searchParams }: PageProps<"/projects/[code]">) {
@@ -92,11 +94,12 @@ async function Project({ params, searchParams }: Pick<PageProps<"/projects/[code
   const [sections, addedValues] = await Promise.all([listSections(getDb(), viewer, { includeInactive: true }), listSectionValues(getDb(), viewer, project.id)]);
   const sectionList = sections.map((section) => ({ id: section.id, label: section.label, kind: section.kind as "TEXT" | "CHOICE", options: section.options, isActive: section.isActive }));
   const sectionValues = Object.fromEntries(addedValues.map((row) => [row.sectionId, row.value]));
-  const [requests, details, changes, actions] = await Promise.all([
+  const [requests, details, changes, actions, quotations] = await Promise.all([
     listRequests(getDb(), viewer, { projectId: project.id }),
     listProjectRequestDetails(getDb(), viewer, project.id),
     listProjectChanges(getDb(), viewer, project.id),
     listProjectActions(getDb(), viewer, project.id),
+    listProjectQuotations(getDb(), viewer, { id: project.id, sourceType: project.sourceType, salesOwnerId: project.salesOwnerId }),
   ]);
   // Sales and admins raise any request; SOA raises a BOQ on a project from another source (Other).
   const raisable = REQUEST_TYPES.filter((type) => canRaiseRequestOn(viewer.role, type, project.sourceType));
@@ -385,6 +388,19 @@ async function Project({ params, searchParams }: Pick<PageProps<"/projects/[code
         </div>
       </Section>
       ) },
+    ...(quotations.mayView
+      ? [{ id: "quotation", label: "Quotation", content: (
+      <Section id="quotation-list" title="Calculation & Quotation" description="Setiap opsi penawaran project ini punya calculation, persetujuan, dan nomor quotation sendiri. Hanya satu opsi yang bisa dipilih customer.">
+        <ProjectQuotations
+          projectId={project.id}
+          projectCode={project.code}
+          rows={quotations.rows}
+          mayCreate={quotations.mayCreate}
+          boqCode={[...details].reverse().find((r) => r.type === "BOQ" && r.items.length > 0)?.code ?? null}
+        />
+      </Section>
+      ) }]
+      : []),
     ]} />
       {mayEditSource ? (
         <Section id="source" title="Project source" description="Proyek ini berasal dari sumber lain, jadi tidak punya Sales PIC internal. Setiap perubahan dicatat di change log dan audit log.">

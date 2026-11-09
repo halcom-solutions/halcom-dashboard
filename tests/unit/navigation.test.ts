@@ -27,6 +27,7 @@ function permissionFor(href: string): Permission {
   if (href === "/admin/master-data") return "masterdata.manage";
   if (href === "/admin/pics") return "pics.manage";
   if (href === "/distributors") return "distributors.manage";
+  if (href === "/quotations") return "quotations.view";
   if (href === "/admin/lockouts") return "logins.manage";
   throw new Error(`No permission mapped for ${href}`);
 }
@@ -34,7 +35,7 @@ function permissionFor(href: string): Permission {
 const labelsFor = (role: (typeof ROLES)[number]) => navLinksFor(role).map((l) => [l.href, l.label]);
 
 describe("navLinksFor", () => {
-  it("shows Sales their pipeline, projects, request center and targets", () => {
+  it("shows Sales their pipeline, projects, request center, targets and quotations", () => {
     expect(labelsFor("SALES")).toEqual([
       ["/dashboard", "Overview"],
       ["/dashboard/sales", "Sales pipeline"],
@@ -42,6 +43,7 @@ describe("navLinksFor", () => {
       ["/customers", "Customers"],
       ["/targets", "Sales targets"],
       ["/requests", "Request center"],
+      ["/quotations", "Quotations"],
     ]);
   });
 
@@ -63,6 +65,7 @@ describe("navLinksFor", () => {
       ["/requests/rfq", "RFQ requests"],
       ["/requests/po", "PO requests"],
       ["/distributors", "Distributors"],
+      ["/quotations", "Quotations"],
     ]);
   });
 
@@ -75,6 +78,7 @@ describe("navLinksFor", () => {
       ["/requests/boq", "BOQ requests"],
       ["/requests/rfq", "RFQ requests"],
       ["/requests/po", "PO requests"],
+      ["/quotations", "Quotations"],
       ["/finance/crosscheck", "Financial crosscheck"],
     ]);
   });

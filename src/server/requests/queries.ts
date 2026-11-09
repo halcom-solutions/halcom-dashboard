@@ -681,6 +681,8 @@ const REQUEST_DETAIL = {
   handovers: { select: { code: true, type: true }, orderBy: { createdAt: "asc" } },
   flowStoppedBy: { select: { name: true } },
   statusHistory: { orderBy: { changedAt: "asc" }, include: { changedBy: { select: { name: true } } } },
+  // What SOA offers in a BOQ (unit name, specification, unit, quantity); a new calculation of the project starts from them (D-088).
+  items: { orderBy: { position: "asc" } },
 } as const;
 
 export async function getRequestByCode(db: PrismaClient, viewer: Viewer, code: string) {

@@ -34,7 +34,8 @@ export type NavIcon =
   | "masterdata"
   | "pics"
   | "lockouts"
-  | "crosscheck";
+  | "crosscheck"
+  | "quotations";
 
 export type NavLinkItem = { href: string; label: string; group: NavGroup; icon: NavIcon };
 
@@ -48,6 +49,8 @@ export const SETTINGS_PATH = "/admin/settings";
 export const MASTER_DATA_PATH = "/admin/master-data";
 export const PICS_PATH = "/admin/pics";
 export const DISTRIBUTORS_PATH = "/distributors";
+export const QUOTATIONS_PATH = "/quotations";
+export const QUOTATION_SETTINGS_PATH = "/admin/settings/quotation";
 export const LOCKOUTS_PATH = "/admin/lockouts";
 export const PROJECTS_PATH = "/projects";
 export const REQUESTS_PATH = "/requests";
@@ -85,6 +88,8 @@ const MODULE_LINKS: readonly ModuleLink[] = [
   { href: `${REQUESTS_PATH}/rfq`, label: "RFQ requests", group: "work", icon: "rfq", permission: "requests.view", hiddenFor: ["SALES", "SOA"], labels: { PURCHASING: "RFQ requests" } },
   { href: `${REQUESTS_PATH}/po`, label: "PO requests", group: "work", icon: "po", permission: "requests.view", hiddenFor: ["SALES", "SOA"] },
   { href: DISTRIBUTORS_PATH, label: "Distributors", group: "work", icon: "customers", permission: "distributors.manage" },
+  // Calculations and quotations (D-088): Sales prepare them, Purchasing checks them, Finance and Management read them.
+  { href: QUOTATIONS_PATH, label: "Quotations", group: "work", icon: "quotations", permission: "quotations.view" },
   { href: NEW_REQUEST_PATH, label: "New request", group: "work", icon: "new", permission: "requests.create", hiddenFor: ["SALES"] },
   { href: HANDOFFS_PATH, label: "Purchasing handoff", group: "work", icon: "handoff", permission: "handoffs.view" },
   { href: TECHNICAL_REPORTS_PATH, label: "Technical reports", group: "work", icon: "reports", permission: "reports.technical.view" },
@@ -94,6 +99,7 @@ const MODULE_LINKS: readonly ModuleLink[] = [
   { href: `${SETTINGS_PATH}/email`, label: "Email", group: "administration", icon: "sla", permission: "settings.view" },
   { href: `${SETTINGS_PATH}/sla`, label: "SLA", group: "administration", icon: "sla", permission: "settings.view" },
   { href: `${SETTINGS_PATH}/ppn`, label: "Basis PPN", group: "administration", icon: "sla", permission: "settings.view" },
+  { href: QUOTATION_SETTINGS_PATH, label: "Quotation", group: "administration", icon: "sla", permission: "settings.view" },
   { href: MASTER_DATA_PATH, label: "Master data", group: "administration", icon: "masterdata", permission: "masterdata.manage", labels: { SOA: "Principal & solution master data" } },
   { href: PICS_PATH, label: "PICs", group: "administration", icon: "pics", permission: "pics.manage" },
   { href: LOCKOUTS_PATH, label: "Locked accounts", group: "administration", icon: "lockouts", permission: "logins.manage" },

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BoqItems } from "@/features/quotations/boq-items";
 import { can } from "@/domain/access/permissions";
 import { salesActsOn } from "@/domain/projects/source";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -148,6 +149,14 @@ export async function RequestPanel({ request, viewer, inProject = false, openEma
             <h3 className="text-sm font-semibold">{request.title}</h3>
             <p className="mt-1 text-sm whitespace-pre-wrap">{request.description || <span className="text-muted-foreground">Tidak ada detail.</span>}</p>
           </div>
+          {request.type === "BOQ" ? (
+            <BoqItems
+              key={request.updatedAt.toISOString()}
+              requestId={request.id}
+              editable={mayWork && request.status !== "CANCELLED"}
+              items={request.items.map((item) => ({ groupLabel: item.groupLabel ?? "", name: item.name, specification: item.specification ?? "", categoryLabel: item.categoryLabel ?? "", uom: item.uom, quantity: item.quantity.toString(), note: item.note ?? "" }))}
+            />
+          ) : null}
           {email ? (
             <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-4">
               <EmailDialog

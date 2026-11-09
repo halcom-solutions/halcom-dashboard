@@ -47,15 +47,18 @@ test("Purchasing keeps the distributor list, exports it, and names a distributor
     const add = page.getByRole("dialog", { name: "Tambah distributor" });
     await add.getByLabel("Nama distributor", { exact: true }).fill(name);
     await add.getByLabel("Alias distributor", { exact: true }).fill(alias);
-    await add.getByLabel("Jenis pembayaran").selectOption("TOP");
-    await add.getByLabel("Lama TOP dalam hari").fill("14");
+    // Two terms for one distributor, TOP 30 as the default and TOP 60 for a bigger scope.
+    await add.getByLabel("Jenis pembayaran 1").selectOption("TOP");
+    await add.getByLabel("Lama TOP 1 dalam hari").fill("30");
+    await add.getByRole("button", { name: "Tambah syarat bayar" }).click();
+    await add.getByLabel("Lama TOP 2 dalam hari").fill("60");
     await add.getByRole("button", { name: "Tambah", exact: true }).click();
     await expect(page.getByText(`${name} ditambahkan.`)).toBeVisible({ timeout: 10_000 });
   }).toPass({ timeout: 60_000 });
   await page.reload();
   const row = page.getByRole("row", { name: new RegExp(name) });
   await expect(row).toContainText(alias);
-  await expect(row).toContainText("TOP 14 hari");
+  await expect(row).toContainText("TOP 30 hari; TOP 60 hari");
 
   // Edit in a modal: turn it off and on again; the modal closes after the save.
   await row.getByRole("button", { name: `Edit ${name}` }).click();
@@ -71,10 +74,27 @@ test("Purchasing keeps the distributor list, exports it, and names a distributor
 
   // The export is in the layout of the upload: Distributor ID first, then the name, alias and terms.
   const csv = await (await page.request.get("/export/distributors?format=csv")).text();
-  expect(csv).toContain("Distributor ID,Nama,Alias,Pembayaran,TOP (hari),Status");
-  expect(csv).toMatch(new RegExp(`${name},${alias},TOP,14,Aktif`));
+  expect(csv).toContain("Distributor ID,Nama,Alias,Pembayaran,Status");
+  expect(csv).toMatch(new RegExp(`${name},${alias},"TOP 30 hari; TOP 60 hari",Aktif`));
   const template = await page.request.get("/export/distributors?template=1");
   expect(template.headers()["content-disposition"]).toContain("template.xlsx");
+
+  // Import / Export opens a modal built like the projects one: three numbered steps, a drop zone, and a check before anything is saved.
+  await page.getByRole("button", { name: "Import / Export" }).click();
+  const io = page.getByRole("dialog", { name: "Import / Export distributor" });
+  await expect(io.getByRole("heading", { name: "Langkah 1: Export atau unduh template" })).toBeVisible();
+  await expect(io.getByRole("heading", { name: "Langkah 2: Lengkapi data" })).toBeVisible();
+  await expect(io.getByRole("heading", { name: "Langkah 3: Unggah berkas" })).toBeVisible();
+  await io.getByText("Unduh berkas").click();
+  await expect(io.getByRole("link", { name: /Template distributor baru/ })).toBeVisible();
+  // Uploading the export unchanged is checked and found to change nothing, so there is nothing to save.
+  const exported = await page.request.get("/export/distributors");
+  await io.getByLabel("Workbook Excel (.xlsx)").setInputFiles({ name: "distributors.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: await exported.body() });
+  await expect(io.getByRole("heading", { name: "Periksa dan simpan" })).toBeVisible({ timeout: 30_000 });
+  await expect(io.getByText(/0 distributor baru, 0 diperbarui/)).toBeVisible();
+  await expect(io.getByRole("button", { name: /^Simpan 0 baru/ })).toBeDisabled();
+  await io.getByRole("button", { name: "Tutup", exact: true }).click();
+  await expect(io).toBeHidden();
 
   // An unused distributor can be deleted from its modal.
   const spare = `PT Spare ${stamp}`;
@@ -88,26 +108,29 @@ test("Purchasing keeps the distributor list, exports it, and names a distributor
   await page.getByRole("dialog", { name: `Hapus ${spare}?` }).getByRole("button", { name: "Hapus distributor" }).click();
   await expect(spareRow).toHaveCount(0);
 
-  // The RFQ names it, with its terms.
+  // The RFQ names it and one of its terms, chosen for the scope of this project.
   await page.goto(`/request/${rfq}`);
   await expect(page.getByText("Belum dipilih").first()).toBeVisible({ timeout: 30_000 });
   await expect(async () => {
     // A searchable box: typing the alias (not the whole name) lists the distributor, and picking it fills the box.
     const box = page.getByLabel("Distributor", { exact: true });
     await box.fill(alias);
-    await page.getByRole("listbox", { name: "distributor options" }).getByRole("option", { name: `${name} (${alias}) · TOP 14 hari` }).click();
-    await expect(box).toHaveValue(`${name} (${alias}) · TOP 14 hari`);
+    await page.getByRole("listbox", { name: "distributor options" }).getByRole("option", { name: `${name} (${alias})` }).click();
+    await expect(box).toHaveValue(`${name} (${alias})`);
+    // The default (first) term is preselected; the other is picked.
+    await expect(page.getByLabel("Syarat bayar")).toHaveValue(/.+/);
+    await page.getByLabel("Syarat bayar").selectOption({ label: "TOP 60 hari" });
     await page.getByRole("button", { name: "Save PIC and distributor" }).click();
     await expect(page.getByText("PIC dan distributor tersimpan.")).toBeVisible({ timeout: 10_000 });
   }).toPass({ timeout: 60_000 });
   await page.reload();
-  await expect(page.getByText(`${name} (${alias}) · TOP 14 hari`).first()).toBeVisible();
+  await expect(page.getByText(`${name} (${alias}) · TOP 60 hari`).first()).toBeVisible();
   await signOut(page);
 
   // Sales read it on the RFQ but have no list and no menu entry.
   await signIn(page, "SALES");
   await page.goto(`/request/${rfq}`);
-  await expect(page.getByText(`${name} (${alias}) · TOP 14 hari`).first()).toBeVisible();
+  await expect(page.getByText(`${name} (${alias}) · TOP 60 hari`).first()).toBeVisible();
   await expect(page.getByLabel("Distributor", { exact: true })).toHaveCount(0);
   await page.goto("/distributors");
   await expect(page.getByText("Halaman tidak ditemukan")).toBeVisible();

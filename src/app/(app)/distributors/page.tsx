@@ -3,7 +3,7 @@ import { PageFallback } from "@/components/app-shell/page-fallback";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { paymentTermsLabel } from "@/domain/distributors/payment";
+import { termsLabel } from "@/domain/distributors/payment";
 import { DashboardHeader } from "@/features/dashboards/dashboard-header";
 import { AddDistributorDialog, DeleteDistributorDialog, EditDistributorDialog, ImportExportDialog } from "@/features/distributors/distributor-forms";
 import { getDb } from "@/lib/db";
@@ -51,7 +51,7 @@ async function Distributors() {
                 <TableRow>
                   <TableHead>Nama</TableHead>
                   <TableHead>Alias</TableHead>
-                  <TableHead>Pembayaran</TableHead>
+                  <TableHead>Syarat bayar</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">RFQ</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
@@ -62,14 +62,14 @@ async function Distributors() {
                   <TableRow key={d.id}>
                     <TableCell className="font-medium">{d.name}</TableCell>
                     <TableCell>{d.alias ?? <span className="text-muted-foreground">-</span>}</TableCell>
-                    <TableCell>{paymentTermsLabel(d)}</TableCell>
+                    <TableCell>{termsLabel(d.terms)}</TableCell>
                     <TableCell>{d.isActive ? <Badge variant="secondary">Aktif</Badge> : <Badge variant="outline">Nonaktif</Badge>}</TableCell>
                     <TableCell className="text-right tabular-nums">
                       {d.openRequests} berjalan / {d.totalRequests}
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
-                        <EditDistributorDialog id={d.id} name={d.name} alias={d.alias} paymentType={d.paymentType} topDays={d.topDays} isActive={d.isActive} />
+                        <EditDistributorDialog id={d.id} name={d.name} alias={d.alias} terms={d.terms} isActive={d.isActive} />
                         <DeleteDistributorDialog id={d.id} name={d.name} totalRequests={d.totalRequests} />
                       </div>
                     </TableCell>

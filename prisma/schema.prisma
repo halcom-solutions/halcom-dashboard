@@ -227,21 +227,35 @@ enum PaymentType {
 }
 
 // A distributor Purchasing buys from, kept by Purchasing. `name` is the registered name, `alias` the name people use in daily talk.
-// A distributor is deactivated, never deleted, so the RFQs that name it stay readable. `topDays` is set only for TOP (a database check keeps it so).
+// A distributor that an RFQ names is deactivated, not deleted, so the RFQ stays readable. Its payment terms are a list (`terms`, the first is the
+// default); the RFQ picks one and keeps a copy.
 model Distributor {
-  id          String      @id @default(uuid(7)) @db.Uuid
-  name        String
-  nameKey     String      @unique @map("name_key")
-  alias       String?
-  paymentType PaymentType @map("payment_type")
-  topDays     Int?        @map("top_days")
-  isActive    Boolean     @default(true) @map("is_active")
-  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id        String   @id @default(uuid(7)) @db.Uuid
+  name      String
+  nameKey   String   @unique @map("name_key")
+  alias     String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  terms    DistributorTerm[]
   requests Request[]
 
   @@map("distributors")
+}
+
+// One way a distributor can be paid. `topDays` is 0 unless the type is TOP (a database check keeps it so). Ordered by `position`; the first is the default.
+model DistributorTerm {
+  id            String      @id @default(uuid(7)) @db.Uuid
+  distributorId String      @map("distributor_id") @db.Uuid
+  paymentType   PaymentType @map("payment_type")
+  topDays       Int         @default(0) @map("top_days")
+  position      Int         @default(0)
+
+  distributor Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+
+  @@unique([distributorId, paymentType, topDays])
+  @@map("distributor_terms")
 }
 
 model SolutionCategory {
@@ -415,6 +429,9 @@ model Request {
   picId           String?       @map("pic_id") @db.Uuid
   // The distributor an RFQ is sent to, chosen by Purchasing from the Distributors master; only an RFQ carries one.
   distributorId   String?       @map("distributor_id") @db.Uuid
+  // The payment terms chosen for this RFQ out of the distributor's terms, kept as a copy so a later change to the distributor does not rewrite the RFQ.
+  paymentType     PaymentType?  @map("payment_type")
+  topDays         Int?          @map("top_days")
   // Set on an RFQ or PO that was handed over from a completed BOQ.
   sourceRequestId String?       @map("source_request_id") @db.Uuid
   submissionKey   String?       @unique @map("submission_key")

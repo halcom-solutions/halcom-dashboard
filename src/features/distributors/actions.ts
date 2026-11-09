@@ -14,14 +14,19 @@ const text = (formData: FormData, name: string) => {
   return typeof value === "string" ? value : "";
 };
 
+/** The payment terms of the form: one `paymentType` and one `topDays` field per row, in the same order (the days are empty unless TOP). */
+function termsOf(formData: FormData) {
+  const days = formData.getAll("topDays");
+  return formData.getAll("paymentType").map((paymentType, at) => ({ paymentType, topDays: days[at] ?? "" }));
+}
+
 /** Adds a distributor. */
 export async function createDistributorAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const user = await requireUser();
   const result = await createDistributor(getDb(), { id: user.id, role: user.role }, {
     name: text(formData, "name"),
     alias: text(formData, "alias"),
-    paymentType: text(formData, "paymentType"),
-    topDays: text(formData, "topDays"),
+    terms: termsOf(formData),
   });
   if (!result.ok) return { ok: false, message: result.message };
   revalidatePath(DISTRIBUTORS_PATH);
@@ -35,8 +40,7 @@ export async function saveDistributorAction(_previous: FormState, formData: Form
     id: text(formData, "id"),
     name: text(formData, "name"),
     alias: text(formData, "alias"),
-    paymentType: text(formData, "paymentType"),
-    topDays: text(formData, "topDays"),
+    terms: termsOf(formData),
     isActive: text(formData, "active") === "true",
   });
   if (!result.ok) return { ok: false, message: result.message };
@@ -61,7 +65,7 @@ export async function importDistributorsAction(formData: FormData): Promise<Dist
   if (!(file instanceof File) || file.size === 0) return { ok: false, message: "Pilih berkas .xlsx." };
   if (file.size > XLSX_LIMITS.fileBytes) return { ok: false, message: `Berkas lebih besar dari ${XLSX_LIMITS.fileBytes / 1024 / 1024} MB.` };
   if (!/\.xlsx$/i.test(file.name)) return { ok: false, message: "Hanya workbook .xlsx yang bisa diimpor. Simpan sheet sebagai Excel Workbook (.xlsx)." };
-  const result = await importDistributors(getDb(), { id: user.id, role: user.role }, { bytes: new Uint8Array(await file.arrayBuffer()), commit: formData.get("commit") === "true" });
+  const result = await importDistributors(getDb(), { id: user.id, role: user.role }, { bytes: new Uint8Array(await file.arrayBuffer()), fileName: file.name, commit: formData.get("commit") === "true" });
   // Also after a save that stopped halfway: the rows before the failure are saved.
   if (result.ok && formData.get("commit") === "true") {
     revalidatePath(DISTRIBUTORS_PATH);

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { can } from "@/domain/access/permissions";
 import { ROLE_LABELS } from "@/domain/access/roles";
 import { logoutAction, switchAccountAction } from "@/features/auth/actions";
+import { ImpersonationBanner } from "@/features/auth/impersonation-banner";
 import { SessionKeepAlive } from "@/features/auth/session-keep-alive";
 import { ACCOUNT_PATH, GUIDE_PATH, NOTIFICATIONS_PATH, navSectionsFor } from "@/features/navigation/links";
 import { ThemeSwitcher } from "@/features/theme/theme-switcher";
@@ -56,7 +57,7 @@ async function AuthenticatedShell({ children }: { children: React.ReactNode }) {
         </div>
       }
     >
-      <SessionKeepAlive />
+      {user.impersonatedBy ? <ImpersonationBanner viewing={user.name} roleLabel={ROLE_LABELS[user.role]} by={user.impersonatedBy.name} /> : <SessionKeepAlive />}
       {children}
     </AppShell>
   );

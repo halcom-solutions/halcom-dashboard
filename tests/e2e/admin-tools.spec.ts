@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { strFromU8, unzipSync } from "fflate";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { toXlsx } from "@/server/export/xlsx";
-import { expectNotFound, signIn } from "./helpers";
+import { expectNotFound, signIn, signInAs } from "./helpers";
 import { seedEmailFor } from "../../prisma/seed-users";
 
 const tag = () => randomBytes(3).toString("hex");
@@ -389,4 +389,48 @@ test("a superadmin gives a Sales user the Management view; an admin has no such 
   await expect(admin.getByRole("dialog").getByRole("heading", { name: "Role" })).toBeVisible();
   await expect(admin.getByText("Tampilan Management", { exact: true })).toHaveCount(0);
   await adminContext.close();
+});
+
+test("a superadmin views the app as another user, read only, and returns to their own account", async ({ page, browser }) => {
+  test.setTimeout(150_000);
+  const stamp = Date.now();
+  const email = `e2e-viewas-${stamp}@example.invalid`;
+  const password = "e2e-created-user-pass-1";
+
+  await signIn(page, "SUPERADMIN");
+  await page.goto("/admin/users");
+  await page.getByLabel("Name", { exact: true }).fill("E2E ViewAs");
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Role", { exact: true }).selectOption("Sales");
+  await page.getByLabel("Initial password").fill(password);
+  await page.getByRole("button", { name: "Create user" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "User created." })).toBeVisible();
+
+  await page.getByRole("button", { name: `Edit ${email}` }).click();
+  await expect(async () => {
+    await page.getByRole("button", { name: `Lihat sebagai ${email}` }).click();
+    await expect(page.getByTestId("impersonation-banner")).toBeVisible({ timeout: 8000 });
+  }).toPass({ timeout: 45_000 });
+  await expect(page.getByTestId("impersonation-banner")).toContainText("E2E ViewAs");
+  // The account is still flagged to choose its own password, but the superadmin looks at the app, not at that gate.
+  await expect(page).not.toHaveURL(/password-change/);
+
+  // A change made while viewing is refused: the viewed account keeps its password.
+  await page.goto("/password-change");
+  await page.getByLabel("Current password").fill(password);
+  await page.getByLabel("New password", { exact: true }).fill("e2e-changed-by-viewer-1");
+  await page.getByLabel("Confirm new password").fill("e2e-changed-by-viewer-1");
+  await page.getByRole("button", { name: /password/i }).first().click();
+  await page.waitForTimeout(1500);
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Keluar dari mode ini" }).click();
+  await expect(page).toHaveURL(/\/admin\/users$/);
+  await expect(page.getByTestId("impersonation-banner")).toHaveCount(0);
+
+  const other = await browser.newContext();
+  const otherPage = await other.newPage();
+  await signInAs(otherPage, email, password); // the original password still works
+  await expect(otherPage).toHaveURL(/\/password-change$/);
+  await other.close();
 });

@@ -23,6 +23,9 @@
 		Referrer-Policy "strict-origin-when-cross-origin"
 		X-Frame-Options "DENY"
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		# An internal tool: search engines must not list it. The header is the reliable signal (the layout also has the meta tag);
+		# robots.txt with Disallow is not used, because a crawler that may not fetch a page never reads its noindex.
+		X-Robots-Tag "noindex, nofollow, noarchive"
 		-Server
 	}
 

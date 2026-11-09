@@ -79,7 +79,7 @@ async function Users() {
                 {mayManage ? (
                   <TableCell>
                     {editable ? (
-                      <UserEditDialog user={{ id: user.id, name: user.name, email: user.email, role: user.role, alsoManagement: user.alsoManagement, isActive: user.isActive }} roles={roles} canChangeEmail={can(viewer.role, "users.change-email")} canSetManagement={can(viewer.role, "users.manage-privileged")} />
+                      <UserEditDialog user={{ id: user.id, name: user.name, email: user.email, role: user.role, alsoManagement: user.alsoManagement, isActive: user.isActive }} roles={roles} canChangeEmail={can(viewer.role, "users.change-email")} canSetManagement={can(viewer.role, "users.manage-privileged")} canImpersonate={can(viewer.role, "users.impersonate")} />
                     ) : (
                       <span className="sr-only">Tidak ada aksi</span>
                     )}

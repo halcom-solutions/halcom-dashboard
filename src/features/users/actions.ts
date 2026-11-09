@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
+import { redirect } from "next/navigation";
+import { homePathFor } from "@/domain/access/dashboards";
 import { requirePermission } from "@/server/auth/current-user";
+import { readSessionToken, setSessionCookie } from "@/server/auth/session-cookie";
+import { revokeSession } from "@/server/auth/session-store";
+import { startImpersonation } from "@/server/users/impersonation";
 import { USERS_PATH } from "@/features/navigation/links";
 import {
   changeUserEmail,
@@ -44,6 +49,18 @@ export async function createUserAction(_previous: ActionState, formData: FormDat
 export async function changeRoleAction(_previous: ActionState, formData: FormData): Promise<ActionState> {
   const result = await changeUserRole(getDb(), await actor(), String(formData.get("userId")), formData.get("role"));
   return toState(result, "Role updated.");
+}
+
+/** Superadmin only: opens the application as another account, read only. The superadmin own session is closed; leaving the mode opens a new one. */
+export async function startImpersonationAction(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requirePermission("users.impersonate");
+  const result = await startImpersonation(getDb(), { id: user.id, role: user.role }, String(formData.get("userId")));
+  if (!result.ok) return { ok: false, message: result.message };
+  const previous = await readSessionToken();
+  if (previous) await revokeSession(getDb(), previous);
+  await setSessionCookie(result.value.token, result.value.expiresAt);
+  revalidatePath("/", "layout");
+  redirect(homePathFor(result.value.role));
 }
 
 /** Superadmin only: its own permission decides. */

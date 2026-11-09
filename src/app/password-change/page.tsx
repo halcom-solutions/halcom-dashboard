@@ -37,10 +37,10 @@ async function ChoosePassword() {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">
-          <h2>Choose your own password</h2>
+          <h2>Ganti kata sandi bawaan Anda</h2>
         </CardTitle>
         <CardDescription>
-          Kata sandi untuk {user.email} diatur orang lain. Pilih kata sandi yang hanya Anda ketahui untuk membuka {APP_NAME}.
+          Akun {user.email} masih memakai kata sandi bawaan dari administrator. Ganti dengan kata sandi baru yang hanya Anda yang tahu, lalu {APP_NAME} bisa dipakai.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

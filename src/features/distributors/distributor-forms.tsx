@@ -7,6 +7,7 @@ import { FormStatus, type FormState } from "@/components/ui/form-status";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
+import { SearchSelect } from "@/components/ui/search-select";
 import { DISTRIBUTOR_NAME_MAX_LENGTH, PAYMENT_TYPE_LABELS, PAYMENT_TYPES, TOP_DAY_CHOICES, TOP_DAYS_MAX, type PaymentType } from "@/domain/distributors/payment";
 import { assignDistributorAction, createDistributorAction, importDistributorsAction, saveDistributorAction, setDistributorActiveAction } from "./actions";
 import type { DistributorImportResult } from "@/server/distributors/import";
@@ -118,15 +119,11 @@ export function AssignDistributorForm({ requestId, current, options }: { request
       <input type="hidden" name="requestId" value={requestId} />
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={id}>Distributor</Label>
-        <NativeSelect id={id} name="distributorId" defaultValue={current}>
-          <option value="">Belum dipilih</option>
-          {options.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </NativeSelect>
-        {options.length === 0 ? <p className="text-xs text-muted-foreground">Belum ada distributor aktif. Tambahkan di menu Distributors.</p> : null}
+        {/* Searchable like the project and Sales PIC pickers: the text is "name (alias) · terms", so any of them finds it. The clear button leaves it empty. */}
+        <SearchSelect id={id} name="distributorId" label="distributor" options={options.map((option) => ({ id: option.id, name: option.label }))} defaultValue={current} placeholder="Cari distributor: nama, alias, atau pembayaran" />
+        <p className="text-xs text-muted-foreground">
+          {options.length === 0 ? "Belum ada distributor aktif. Tambahkan di menu Distributors." : "Ketik untuk mencari. Kosongkan dengan tombol X untuk melepas distributor."}
+        </p>
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "Menyimpan…" : "Simpan distributor"}

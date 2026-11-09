@@ -1073,6 +1073,8 @@ The preview of each template (filled with sample data) is no longer a long block
 - **Known limit.** Rows are saved one by one, not in one transaction; a name taken at the same moment can stop the save halfway. The earlier rows stay saved and read as unchanged when the file is uploaded again.
 - **Not built:** several distributors on one RFQ (for comparing quotes), a distributor on a PO, contact details and notes per distributor, and the distributor in the RFQ e-mail text and in the exports of requests.
 
+**Amendment to D-087 (2026-11-13), asked by the owner after seeing it:** (1) On an RFQ the PIC and the distributor are one card and one form with one Save (`AssignPicForm` takes an optional `distributor`; the action saves the PIC first, then the distributor, each re-checked by its own service). (2) On `/distributors` the list is a table, and add, edit and delete are buttons that open modals; Import / Export is one modal like the projects page. The on/off switch moved into the Edit modal (a checkbox). (3) Delete is real but only for a distributor no request has ever named (hidden RFQs count); otherwise the server refuses and says to turn it off in Edit, because the RFQ and its history must stay readable. Audited as `distributor.deleted`. No migration.
+
 ## D-089: Status can be changed from the request page, a superadmin can move a request to any status, and the board scrolls while dragging (2026-11-11)
 
 **Asked by the owner**, after the board proved hard to use on a small laptop screen.

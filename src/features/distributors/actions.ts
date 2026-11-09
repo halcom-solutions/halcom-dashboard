@@ -6,7 +6,7 @@ import { DISTRIBUTORS_PATH, REQUESTS_PATH } from "@/features/navigation/links";
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/server/auth/current-user";
 import { XLSX_LIMITS } from "@/server/import/xlsx-reader";
-import { assignRequestDistributor, createDistributor, updateDistributor } from "@/server/distributors/service";
+import { createDistributor, deleteDistributor, updateDistributor } from "@/server/distributors/service";
 import { importDistributors, type DistributorImportResult } from "@/server/distributors/import";
 
 const text = (formData: FormData, name: string) => {
@@ -28,7 +28,7 @@ export async function createDistributorAction(_previous: FormState, formData: Fo
   return { ok: true, message: `${result.value.name} ditambahkan.` };
 }
 
-/** Saves the name, alias and payment terms of a distributor. */
+/** Saves the name, alias, payment terms and on/off state (the checkbox) of a distributor. */
 export async function saveDistributorAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const user = await requireUser();
   const result = await updateDistributor(getDb(), { id: user.id, role: user.role }, {
@@ -37,6 +37,7 @@ export async function saveDistributorAction(_previous: FormState, formData: Form
     alias: text(formData, "alias"),
     paymentType: text(formData, "paymentType"),
     topDays: text(formData, "topDays"),
+    isActive: text(formData, "active") === "true",
   });
   if (!result.ok) return { ok: false, message: result.message };
   revalidatePath(DISTRIBUTORS_PATH);
@@ -44,24 +45,13 @@ export async function saveDistributorAction(_previous: FormState, formData: Form
   return { ok: true, message: "Tersimpan." };
 }
 
-/** Turns a distributor on or off. RFQs that name it are kept. */
-export async function setDistributorActiveAction(_previous: FormState, formData: FormData): Promise<FormState> {
+/** Deletes a distributor no RFQ names; the service refuses otherwise. */
+export async function deleteDistributorAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const user = await requireUser();
-  const active = text(formData, "active") === "true";
-  const result = await updateDistributor(getDb(), { id: user.id, role: user.role }, { id: text(formData, "id"), isActive: active });
+  const result = await deleteDistributor(getDb(), { id: user.id, role: user.role }, { id: text(formData, "id") });
   if (!result.ok) return { ok: false, message: result.message };
   revalidatePath(DISTRIBUTORS_PATH);
-  return { ok: true, message: active ? "Diaktifkan." : "Dinonaktifkan." };
-}
-
-/** Purchasing names the distributor of an RFQ (or clears it with an empty choice). */
-export async function assignDistributorAction(_previous: FormState, formData: FormData): Promise<FormState> {
-  const user = await requireUser();
-  const result = await assignRequestDistributor(getDb(), { id: user.id, role: user.role }, { requestId: text(formData, "requestId"), distributorId: text(formData, "distributorId") });
-  if (!result.ok) return { ok: false, message: result.message };
-  revalidatePath(`/request/${result.value.code}`);
-  revalidatePath(REQUESTS_PATH);
-  return { ok: true, message: result.value.distributorId ? "Distributor tersimpan." : "Distributor dikosongkan." };
+  return { ok: true, message: `${result.value.name} dihapus.` };
 }
 
 /** Checks an uploaded sheet (`commit` unset) or saves it (`commit=true`). The file is read again on the server each time. */

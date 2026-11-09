@@ -1,15 +1,14 @@
 "use client";
 
-import { useActionState, useId, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowUpDown, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormStatus, type FormState } from "@/components/ui/form-status";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
-import { SearchSelect } from "@/components/ui/search-select";
 import { DISTRIBUTOR_NAME_MAX_LENGTH, PAYMENT_TYPE_LABELS, PAYMENT_TYPES, TOP_DAY_CHOICES, TOP_DAYS_MAX, type PaymentType } from "@/domain/distributors/payment";
-import { assignDistributorAction, createDistributorAction, importDistributorsAction, saveDistributorAction, setDistributorActiveAction } from "./actions";
+import { createDistributorAction, deleteDistributorAction, importDistributorsAction, saveDistributorAction } from "./actions";
 import type { DistributorImportResult } from "@/server/distributors/import";
 
 function LabelledField({ label, children }: { label: string; children: React.ReactNode }) {
@@ -18,6 +17,74 @@ function LabelledField({ label, children }: { label: string; children: React.Rea
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       {children}
     </div>
+  );
+}
+
+/** A modal like the ones on the project pages. `state` is the result of the form inside: the modal closes by itself once it succeeds (the toast says so). */
+function Modal({
+  trigger,
+  title,
+  description,
+  state = null,
+  wide = false,
+  onClose,
+  children,
+}: {
+  trigger: (open: () => void) => React.ReactNode;
+  title: string;
+  description?: string;
+  state?: FormState;
+  wide?: boolean;
+  onClose?: () => void;
+  children: (close: () => void) => React.ReactNode;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const [open, setOpen] = useState(false);
+  // The state is the truth; the effect keeps the native dialog in step with it.
+  useEffect(() => {
+    const element = dialog.current;
+    if (!element) return;
+    if (open && !element.open) element.showModal();
+    if (!open && element.open) element.close();
+  }, [open]);
+  useEffect(() => {
+    // Closing the native dialog fires its close event, which clears `open`.
+    if (state?.ok) dialog.current?.close();
+  }, [state]);
+  const close = () => setOpen(false);
+  return (
+    <>
+      {trigger(() => setOpen(true))}
+      <dialog
+        ref={dialog}
+        aria-labelledby={titleId}
+        className={`m-auto max-h-[92svh] overflow-y-auto rounded-xl border bg-popover p-0 text-popover-foreground shadow-xl backdrop:bg-black/50 ${wide ? "w-[min(54rem,calc(100vw-2rem))]" : "w-[min(34rem,calc(100vw-2rem))]"}`}
+        onClose={() => {
+          setOpen(false);
+          onClose?.();
+        }}
+        onClick={(event) => {
+          if (event.target === dialog.current) close();
+        }}
+      >
+        <div className="flex flex-col gap-4 p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 id={titleId} className="text-base font-semibold">
+                {title}
+              </h2>
+              {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+            </div>
+            <Button type="button" variant="ghost" size="icon" aria-label="Tutup" onClick={close}>
+              <X aria-hidden />
+            </Button>
+          </div>
+          {/* Mounted only while open, so each opening starts from the saved values. */}
+          {open ? children(close) : null}
+        </div>
+      </dialog>
+    </>
   );
 }
 
@@ -38,7 +105,7 @@ function PaymentFields({ defaultType = "CBD", defaultDays = null }: { defaultTyp
       </LabelledField>
       {type === "TOP" ? (
         <LabelledField label="Lama TOP (hari)">
-          <Input name="topDays" type="number" inputMode="numeric" min={1} max={TOP_DAYS_MAX} list={listId} defaultValue={defaultDays ?? 30} required aria-label="Lama TOP dalam hari" className="w-28" />
+          <Input name="topDays" type="number" inputMode="numeric" min={1} max={TOP_DAYS_MAX} list={listId} defaultValue={defaultDays ?? 30} required aria-label="Lama TOP dalam hari" />
           <datalist id={listId}>
             {TOP_DAY_CHOICES.map((days) => (
               <option key={days} value={days} />
@@ -50,95 +117,163 @@ function PaymentFields({ defaultType = "CBD", defaultDays = null }: { defaultTyp
   );
 }
 
-/** Adds a distributor. */
-export function AddDistributorForm() {
+function DistributorFields({ name = "", alias = "", paymentType, topDays }: { name?: string; alias?: string; paymentType?: PaymentType; topDays?: number | null }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <LabelledField label="Nama (sesuai legal)">
+        <Input name="name" defaultValue={name} maxLength={DISTRIBUTOR_NAME_MAX_LENGTH} required placeholder="PT Contoh Distribusi" aria-label="Nama distributor" />
+      </LabelledField>
+      <LabelledField label="Alias (opsional)">
+        <Input name="alias" defaultValue={alias} maxLength={DISTRIBUTOR_NAME_MAX_LENGTH} placeholder="Contoh" aria-label="Alias distributor" />
+      </LabelledField>
+      <PaymentFields defaultType={paymentType} defaultDays={topDays} />
+    </div>
+  );
+}
+
+function Actions({ pending, submit, close, destructive = false }: { pending: boolean; submit: string; close: () => void; destructive?: boolean }) {
+  return (
+    <div className="flex justify-end gap-2">
+      <Button type="button" variant="outline" onClick={close}>
+        Batal
+      </Button>
+      <Button type="submit" variant={destructive ? "destructive" : "default"} disabled={pending}>
+        {pending ? "Memproses…" : submit}
+      </Button>
+    </div>
+  );
+}
+
+/** The button that opens the add form. */
+export function AddDistributorDialog() {
   const [state, formAction, pending] = useActionState<FormState, FormData>(createDistributorAction, null);
   return (
-    <form action={formAction} className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-end gap-3">
-        <LabelledField label="Nama (sesuai legal)">
-          <Input name="name" maxLength={DISTRIBUTOR_NAME_MAX_LENGTH} required placeholder="PT Contoh Distribusi" aria-label="Nama distributor" className="w-64" />
-        </LabelledField>
-        <LabelledField label="Alias (opsional)">
-          <Input name="alias" maxLength={DISTRIBUTOR_NAME_MAX_LENGTH} placeholder="Contoh" aria-label="Alias distributor" className="w-44" />
-        </LabelledField>
-        <PaymentFields />
-        <Button type="submit" disabled={pending}>
-          {pending ? "Menambah…" : "Tambah distributor"}
+    <Modal
+      title="Tambah distributor"
+      description="CBD dibayar sebelum barang dikirim, COD saat barang diterima, TOP dibayar setelah sekian hari."
+      state={state}
+      trigger={(open) => (
+        <Button type="button" aria-haspopup="dialog" onClick={open}>
+          <Plus aria-hidden data-icon="inline-start" />
+          Tambah distributor
         </Button>
-      </div>
-      <FormStatus state={state} />
-    </form>
-  );
-}
-
-/** One distributor: edit the name, alias and payment terms, or turn it off (and on again). Never deleted, so RFQs keep its name. */
-export function DistributorRow(props: { id: string; name: string; alias: string | null; paymentType: PaymentType; topDays: number | null; isActive: boolean; openRequests: number; totalRequests: number }) {
-  const { id, name, alias, paymentType, topDays, isActive, openRequests, totalRequests } = props;
-  const [saved, save, saving] = useActionState<FormState, FormData>(saveDistributorAction, null);
-  const [toggled, toggle, toggling] = useActionState<FormState, FormData>(setDistributorActiveAction, null);
-  return (
-    <li className="flex flex-col gap-2 py-3">
-      <form action={save} className="flex flex-wrap items-end gap-3">
-        <input type="hidden" name="id" value={id} />
-        <LabelledField label="Nama">
-          <Input name="name" defaultValue={name} maxLength={DISTRIBUTOR_NAME_MAX_LENGTH} required aria-label={`Nama ${name}`} className="w-64" />
-        </LabelledField>
-        <LabelledField label="Alias">
-          <Input name="alias" defaultValue={alias ?? ""} maxLength={DISTRIBUTOR_NAME_MAX_LENGTH} aria-label={`Alias ${name}`} className="w-44" />
-        </LabelledField>
-        <PaymentFields defaultType={paymentType} defaultDays={topDays} />
-        <Button type="submit" size="sm" disabled={saving}>
-          Simpan
-        </Button>
-      </form>
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-xs text-muted-foreground">
-          {isActive ? "Aktif" : "Nonaktif"} · {openRequests} RFQ berjalan dari {totalRequests}
-        </span>
-        <form action={toggle}>
-          <input type="hidden" name="id" value={id} />
-          <input type="hidden" name="active" value={isActive ? "false" : "true"} />
-          <Button type="submit" variant={isActive ? "outline" : "default"} size="sm" disabled={toggling} aria-label={`${isActive ? "Nonaktifkan" : "Aktifkan"} ${name}`}>
-            {isActive ? "Nonaktifkan" : "Aktifkan"}
-          </Button>
+      )}
+    >
+      {(close) => (
+        <form action={formAction} className="flex flex-col gap-4">
+          <DistributorFields />
+          <FormStatus state={state} />
+          <Actions pending={pending} submit="Tambah" close={close} />
         </form>
-      </div>
-      <FormStatus state={saved} />
-      <FormStatus state={toggled} />
-    </li>
+      )}
+    </Modal>
   );
 }
 
-/** Purchasing names the distributor an RFQ is sent to. */
-export function AssignDistributorForm({ requestId, current, options }: { requestId: string; current: string; options: readonly { id: string; label: string }[] }) {
-  const [state, formAction, pending] = useActionState<FormState, FormData>(assignDistributorAction, null);
-  const id = `distributor-${requestId}`;
+type RowProps = { id: string; name: string; alias: string | null; paymentType: PaymentType; topDays: number | null; isActive: boolean };
+
+/** Edit the name, alias, payment terms and whether the distributor can be chosen on new RFQs. */
+export function EditDistributorDialog({ id, name, alias, paymentType, topDays, isActive }: RowProps) {
+  const [state, formAction, pending] = useActionState<FormState, FormData>(saveDistributorAction, null);
   return (
-    <form key={current} action={formAction} className="grid gap-3 sm:grid-cols-[minmax(0,22rem)_auto] sm:items-end">
-      <input type="hidden" name="requestId" value={requestId} />
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor={id}>Distributor</Label>
-        {/* Searchable like the project and Sales PIC pickers: the text is "name (alias) · terms", so any of them finds it. The clear button leaves it empty. */}
-        <SearchSelect id={id} name="distributorId" label="distributor" options={options.map((option) => ({ id: option.id, name: option.label }))} defaultValue={current} placeholder="Cari distributor: nama, alias, atau pembayaran" />
-        <p className="text-xs text-muted-foreground">
-          {options.length === 0 ? "Belum ada distributor aktif. Tambahkan di menu Distributors." : "Ketik untuk mencari. Kosongkan dengan tombol X untuk melepas distributor."}
-        </p>
-      </div>
-      <Button type="submit" disabled={pending}>
-        {pending ? "Menyimpan…" : "Simpan distributor"}
-      </Button>
-      <div className="sm:col-span-2">
-        <FormStatus state={state} />
-      </div>
-    </form>
+    <Modal
+      title={`Edit ${name}`}
+      description="Mengubah jenis pembayaran mengubah tampilan semua RFQ yang memakai distributor ini."
+      state={state}
+      trigger={(open) => (
+        <Button type="button" variant="outline" size="sm" aria-haspopup="dialog" aria-label={`Edit ${name}`} onClick={open}>
+          <Pencil aria-hidden data-icon="inline-start" />
+          Edit
+        </Button>
+      )}
+    >
+      {(close) => (
+        <form action={formAction} className="flex flex-col gap-4">
+          <input type="hidden" name="id" value={id} />
+          <DistributorFields name={name} alias={alias ?? ""} paymentType={paymentType} topDays={topDays} />
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="active" value="true" defaultChecked={isActive} className="size-4" />
+            Aktif (bisa dipilih pada RFQ baru)
+          </label>
+          <FormStatus state={state} />
+          <Actions pending={pending} submit="Simpan" close={close} />
+        </form>
+      )}
+    </Modal>
+  );
+}
+
+/** Delete asks first; the server refuses a distributor an RFQ already names (then it is turned off with Edit). */
+export function DeleteDistributorDialog({ id, name, totalRequests }: { id: string; name: string; totalRequests: number }) {
+  const [state, formAction, pending] = useActionState<FormState, FormData>(deleteDistributorAction, null);
+  return (
+    <Modal
+      title={`Hapus ${name}?`}
+      description={
+        totalRequests > 0
+          ? `${totalRequests} RFQ memakai distributor ini, jadi tidak bisa dihapus. Nonaktifkan lewat Edit agar tidak bisa dipilih lagi.`
+          : "Distributor dihapus dari daftar. Tindakan ini tidak bisa dibatalkan, tetapi tercatat di audit log."
+      }
+      state={state}
+      trigger={(open) => (
+        <Button type="button" variant="destructive" size="sm" aria-haspopup="dialog" aria-label={`Hapus ${name}`} onClick={open}>
+          <Trash2 aria-hidden data-icon="inline-start" />
+          Hapus
+        </Button>
+      )}
+    >
+      {(close) => (
+        <form action={formAction} className="flex flex-col gap-4">
+          <input type="hidden" name="id" value={id} />
+          <FormStatus state={state} />
+          <Actions pending={pending} submit="Hapus distributor" close={close} destructive />
+        </form>
+      )}
+    </Modal>
+  );
+}
+
+/** One modal for Excel work, like the projects page: export or template, then upload. The list refreshes when it closes. */
+export function ImportExportDialog() {
+  const router = useRouter();
+  const link = "inline-flex h-8 items-center rounded-lg border bg-background px-2.5 text-sm font-medium hover:bg-muted";
+  return (
+    <Modal
+      title="Import / Export distributor"
+      description="Unduh daftar sebagai Excel, ubah atau tambah barisnya, lalu unggah lagi. Baris dengan Distributor ID mengubah distributor itu; baris tanpa ID menjadi distributor baru. Setiap baris diperiksa dulu, dan tidak ada yang disimpan sampai semuanya benar."
+      wide
+      onClose={() => router.refresh()}
+      trigger={(open) => (
+        <Button type="button" variant="outline" aria-haspopup="dialog" onClick={open}>
+          <ArrowUpDown aria-hidden data-icon="inline-start" />
+          Import / Export
+        </Button>
+      )}
+    >
+      {() => (
+        <>
+          <div className="flex flex-wrap gap-2">
+            <a className={link} href="/export/distributors">
+              Export Excel
+            </a>
+            <a className={link} href="/export/distributors?format=csv">
+              Export CSV
+            </a>
+            <a className={link} href="/export/distributors?template=1">
+              Unduh template
+            </a>
+          </div>
+          <ImportDistributors />
+        </>
+      )}
+    </Modal>
   );
 }
 
 const ROW_LABEL = { add: "Baru", update: "Diubah", same: "Tidak berubah", error: "Salah" } as const;
 
 /** Upload a sheet: first check it (nothing is saved), then save. The sheet is the export or the template; a row with a Distributor ID changes that distributor. */
-export function ImportDistributors() {
+function ImportDistributors() {
   const form = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const [pending, start] = useTransition();

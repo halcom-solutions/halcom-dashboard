@@ -18,6 +18,8 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: APP_NAME,
   description: "Pelacak request BOQ, RFQ, dan PO untuk Sales, SOA, dan Purchasing Halcom.",
+  // An internal tool behind a sign-in: keep it out of search results (Caddy sends the same instruction as a header).
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

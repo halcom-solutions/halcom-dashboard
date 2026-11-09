@@ -1,11 +1,19 @@
 # Caddy in the `caddy` container of deploy/compose.hostinger.yaml. The workflow "Deploy to Hostinger" copies this file to /opt/halcom,
-# where the container reads it (read-only), and deploy-vps.sh reloads Caddy after every deploy.
-# DOMAIN comes from /opt/halcom/.env (for example halcom-dashboard.site, without https://).
+# where the container reads it (read-only), and deploy-vps.sh checks it and reloads Caddy after every deploy.
 #
-# Caddy gets and renews the HTTPS certificate by itself (port 80 must be open for that) and redirects HTTP to HTTPS.
+# Two addresses are served at the same time, each with its own certificate, so one of them still works when the other does not
+# (the domain was suspended once):
+#   DOMAIN           the main address, from /opt/halcom/.env (for example halcom-dashboard.site, without https://). It is also the
+#                    address in the links of the e-mail text (APP_BASE_URL).
+#   FALLBACK_DOMAIN  the host name of the VPS itself, always answered. Set it in .env only to change it.
+# They must be two different names. To use the host name as the main address for a while, swap them in .env
+# (DOMAIN=srv2127418.hstgr.cloud and FALLBACK_DOMAIN=halcom-dashboard.site); see deploy/HOSTINGER-DOCKER-MANAGER.md.
+#
+# Caddy gets and renews the certificates by itself (port 80 must be open for that) and redirects HTTP to HTTPS.
 # By default Caddy does not trust an X-Forwarded-For sent by the client: it sets it to the real address, which the sign-in throttle reads.
+# A session cookie belongs to one host name, so a person signs in again when they switch from one address to the other.
 
-{$DOMAIN} {
+(halcom) {
 	encode zstd gzip
 
 	header {
@@ -24,7 +32,15 @@
 	log
 }
 
-# www goes to the plain domain. The DNS record (CNAME www) already points here, so Caddy can get a certificate for it.
-www.{$DOMAIN} {
-	redir https://{$DOMAIN}{uri} permanent
+{$DOMAIN} {
+	import halcom
+}
+
+{$FALLBACK_DOMAIN:srv2127418.hstgr.cloud} {
+	import halcom
+}
+
+# www of the company domain goes to the plain domain (its DNS record, CNAME www, points here). Only this domain has a www.
+www.halcom-dashboard.site {
+	redir https://halcom-dashboard.site{uri} permanent
 }

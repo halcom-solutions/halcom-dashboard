@@ -221,22 +221,20 @@ describe("BOQ worksheet (Kemenkebud layout)", () => {
     ],
   };
 
-  it("reads items under their group headings, with the rounded selling price per unit, and leaves out what Add excludes and the old summary block", () => {
+  it("maps name, specification, UoM and quantity under their group headings, leaving out prices, Add = FALSE and the old summary block", () => {
     const result = parseBoqSheet(sheet);
     if (!result.ok) throw new Error(result.message);
     expect(result.skipped).toBe(1);
-    expect(result.items.map((item) => [item.groupLabel, item.name, item.uom, item.quantity, item.buyPrice, item.sellPrice, item.vendor])).toEqual([
-      ["CCTV", "Hikvision DS-2CD2143G2-LI", "Unit", "2", "2730700", "3195000", "Megabintang"],
-      ["CCTV", "Toshiba 12TB HDD", "Unit", "2", "9369369.37", "10962000", "Megabintang"],
-      ["JASA", "Instalasi & Konfigurasi Server Xfusion", "Unit", "2", "75000000", "87750000", null],
+    expect(result.items).toEqual([
+      { row: 3, groupLabel: "CCTV", name: "Hikvision DS-2CD2143G2-LI", specification: "IP Camera 4 MP 2.8mm", categoryLabel: "CCTV", uom: "Unit", quantity: "2" },
+      { row: 4, groupLabel: "CCTV", name: "Toshiba 12TB HDD", specification: null, categoryLabel: "Harddisk", uom: "Unit", quantity: "2" },
+      { row: 7, groupLabel: "JASA", name: "Instalasi & Konfigurasi Server Xfusion", specification: "per unit", categoryLabel: "Jasa", uom: "Unit", quantity: "2" },
     ]);
-    expect(result.items[1]?.note).toBe("Stock: Ready");
-    expect(result.items[0]?.specification).toBe("IP Camera 4 MP 2.8mm");
   });
 
-  it("reads a BOQ from SOA without prices, and refuses a sheet without names or quantities", () => {
-    const soa = parseBoqSheet({ headers: ["Nama Unit", "Spesifikasi", "Satuan", "Qty"], rowNumbers: [2], rows: [["Switch 48 port", "48x10GE", "Unit", "3"]] });
-    expect(soa).toMatchObject({ ok: true, items: [{ name: "Switch 48 port", specification: "48x10GE", uom: "Unit", quantity: "3", buyPrice: null, sellPrice: null }] });
+  it("reads a sheet with other headers and a decimal comma, and refuses one without names or quantities", () => {
+    const soa = parseBoqSheet({ headers: ["Nama Unit", "Spesifikasi", "Satuan", "Qty"], rowNumbers: [2], rows: [["Kabel UTP Cat6", "Belden 305 m", "Meter", "1,5"]] });
+    expect(soa).toMatchObject({ ok: true, items: [{ name: "Kabel UTP Cat6", specification: "Belden 305 m", uom: "Meter", quantity: "1.5" }] });
     expect(parseBoqSheet({ headers: ["Spesifikasi", "Qty"], rowNumbers: [], rows: [] })).toMatchObject({ ok: false });
   });
 });

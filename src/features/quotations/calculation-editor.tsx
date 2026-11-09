@@ -50,6 +50,8 @@ export type EditorProps = {
   steps: readonly ApprovalStepConfig[];
   distributors: readonly { id: string; label: string; terms: string }[];
   rfqs: readonly { id: string; code: string }[];
+  /** The latest BOQ SOA sent for the project, mapped to lines (name, specification, UoM, qty), to fill the form again after a revision. */
+  boq: { code: string; lines: EditorLine[] } | null;
 };
 
 /** "1.763.000" or "1.763.000,50" (Indonesian) as "1763000" / "1763000.50": what the server accepts. */
@@ -127,6 +129,12 @@ export function CalculationEditor(props: EditorProps) {
   const chooseDistributor = (index: number, distributorId: string) => {
     const distributor = props.distributors.find((option) => option.id === distributorId);
     setLine(index, { distributorId, vendorTerms: distributor ? distributor.terms : (lines[index]?.vendorTerms ?? ""), vendorName: distributor ? "" : (lines[index]?.vendorName ?? "") });
+  };
+  const fillFromBoq = () => {
+    if (!props.boq) return;
+    if (counted.length > 0 && !window.confirm(`Ganti ${counted.length} baris yang ada dengan ${props.boq.lines.length} item BOQ ${props.boq.code}? Harga jual dan COGS diisi lagi.`)) return;
+    setLines(props.boq.lines.map((row) => ({ ...row })));
+    toast(`${props.boq.lines.length} item dari ${props.boq.code} dimuat. Isi harga lalu simpan.`, true);
   };
   const importSheet = (file: File) => {
     if (counted.length > 0 && !window.confirm(`Ganti ${counted.length} baris yang ada dengan isi sheet?`)) return;
@@ -212,11 +220,18 @@ export function CalculationEditor(props: EditorProps) {
         </label>
         {editAll ? (
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-muted-foreground">Isi dari Excel BOQ</span>
+            <span className="text-xs font-medium text-muted-foreground">Isi baris (nama, spesifikasi, UoM, qty)</span>
             <input ref={fileInput} type="file" accept=".xlsx" className="hidden" onChange={(event) => event.target.files?.[0] && importSheet(event.target.files[0])} aria-label="Berkas Excel BOQ" />
-            <Button type="button" variant="outline" size="sm" disabled={importing} onClick={() => fileInput.current?.click()}>
-              <FileUp aria-hidden /> {importing ? "Membaca…" : "Impor .xlsx"}
-            </Button>
+            <span className="flex gap-2">
+              {props.boq ? (
+                <Button type="button" variant="outline" size="sm" onClick={fillFromBoq}>
+                  Isi dari BOQ SOA ({props.boq.code})
+                </Button>
+              ) : null}
+              <Button type="button" variant="outline" size="sm" disabled={importing} onClick={() => fileInput.current?.click()}>
+                <FileUp aria-hidden /> {importing ? "Membaca…" : "Impor .xlsx"}
+              </Button>
+            </span>
           </div>
         ) : null}
       </div>

@@ -6,7 +6,7 @@ import { QUOTATION_NUMBER_PATTERN, sequenceOf } from "@/domain/quotations/number
 import { getDb } from "@/lib/db";
 import { createDistributor } from "@/server/distributors/service";
 import { toXlsx } from "@/server/export/xlsx";
-import { importRequestItems, readCalculationSheet, saveRequestItems } from "@/server/quotations/boq-items";
+import { importRequestItems, latestBoqLines, readCalculationSheet } from "@/server/quotations/boq-items";
 import { getQuotationDetail, listQuotations } from "@/server/quotations/queries";
 import {
   acknowledgeQuotation,
@@ -193,60 +193,69 @@ describe("starting a quotation", () => {
   });
 });
 
-describe("items SOA writes in a BOQ", () => {
-  it("fill a new calculation: unit name, specification, unit and quantity in their groups, the category guessed", async () => {
+/** A BOQ workbook in the Kemenkebud layout, prices and vendor columns included (they are not mapped). */
+function boqWorkbook(rows: (string | number | null)[][]) {
+  return toXlsx("BOQ", ["No", "Nama Barang", "Spesifikasi", "Kategori", "Uom", "Qty", "Cost Excl PPN", "Total Selling Price Excl PPN", "Distri", "Add"], rows);
+}
+
+describe("the BOQ Excel SOA send", () => {
+  it("is uploaded by SOA only, and fills a new calculation with name, specification, UoM and qty in their groups, without prices", async () => {
     const sales = await actorOf("SALES");
     const soa = await actorOf("SOA");
     const project = await projectOf(sales);
     const boq = await createRequest(db, sales, { projectId: project.id, type: "BOQ", title: "BOQ DC" });
     if (!boq.ok) throw new Error(boq.message);
+    const workbook = boqWorkbook([
+      ["1", "STORAGE", null, null, null, null, null, null, null, null],
+      ["1.1", "Huawei OceanStor Dorado 3000 V7", "2U, Dual Controller, NVMe", "Storage", "Unit", 1, 12607372382.87, 14750626000, "ECS", "TRUE"],
+      ["1.2", "Optional", null, "Storage", "Unit", 1, 100, 200, null, "FALSE"],
+      ["7", "JASA", null, null, null, null, null, null, null, null],
+      ["7.1", "Instalasi & Konfigurasi Server Xfusion", "per unit", "Jasa", "Unit", 2, 75000000, 175500000, "ECS", "TRUE"],
+    ]);
 
-    const items = [
-      { groupLabel: "STORAGE", name: "Huawei OceanStor Dorado 3000 V7", specification: "2U, Dual Controller, NVMe", categoryLabel: "Storage", uom: "Unit", quantity: "1", note: "" },
-      { groupLabel: "JASA", name: "Instalasi & Konfigurasi Server Xfusion", specification: "per unit", categoryLabel: "Jasa", uom: "Unit", quantity: "2", note: "" },
-    ];
-    expect(await saveRequestItems(db, sales, { requestId: boq.value.id, items })).toMatchObject({ ok: false });
-    expect(await saveRequestItems(db, soa, { requestId: boq.value.id, items: [{ ...items[0]!, quantity: "0" }] })).toMatchObject({ ok: false });
-    expect(await saveRequestItems(db, soa, { requestId: boq.value.id, items })).toMatchObject({ ok: true, value: { count: 2 } });
+    expect(await importRequestItems(db, sales, { requestId: boq.value.id, bytes: workbook })).toMatchObject({ ok: false });
+    expect(await importRequestItems(db, soa, { requestId: boq.value.id, bytes: boqWorkbook([["1", "Barang", null, null, "Unit", "nol", null, null, null, null]]) })).toMatchObject({ ok: false });
+    expect(await importRequestItems(db, soa, { requestId: boq.value.id, bytes: workbook })).toMatchObject({ ok: true, value: { count: 2, skipped: 1 } });
+    const stored = await db.requestItem.findMany({ where: { requestId: boq.value.id }, orderBy: { position: "asc" } });
+    expect(stored.map((item) => [item.groupLabel, item.name, item.specification, item.uom, item.quantity.toString()])).toEqual([
+      ["STORAGE", "Huawei OceanStor Dorado 3000 V7", "2U, Dual Controller, NVMe", "Unit", "1"],
+      ["JASA", "Instalasi & Konfigurasi Server Xfusion", "per unit", "Unit", "2"],
+    ]);
 
     const draft = await draftFor(sales, project.id);
     const row = await db.quotation.findUniqueOrThrow({ where: { id: draft.id }, include: { lines: { orderBy: { position: "asc" } } } });
     expect(row.boqRequestId).toBe(boq.value.id);
-    expect(row.lines.map((l) => [l.groupLabel, l.description, l.specification, l.category, l.unit, l.quantity.toString(), l.sellPrice.toString(), l.buyPrice])).toEqual([
-      ["STORAGE", "Huawei OceanStor Dorado 3000 V7", "2U, Dual Controller, NVMe", "GOODS", "Unit", "1", "0", null],
-      ["JASA", "Instalasi & Konfigurasi Server Xfusion", "per unit", "SERVICES", "Unit", "2", "0", null],
+    expect(row.lines.map((l) => [l.groupLabel, l.description, l.specification, l.category, l.unit, l.quantity.toString(), l.sellPrice.toString(), l.buyPrice, l.vendorName])).toEqual([
+      ["STORAGE", "Huawei OceanStor Dorado 3000 V7", "2U, Dual Controller, NVMe", "GOODS", "Unit", "1", "0", null, null],
+      ["JASA", "Instalasi & Konfigurasi Server Xfusion", "per unit", "SERVICES", "Unit", "2", "0", null, null],
     ]);
   });
 
-  it("are imported from the BOQ workbook by SOA, and the same workbook fills Sales' form with prices and vendors", async () => {
+  it("can be sent again after a revision, and Sales load the new items into their draft (or read a workbook themselves) with the same mapping", async () => {
     const sales = await actorOf("SALES");
     const soa = await actorOf("SOA");
     const project = await projectOf(sales);
     const boq = await createRequest(db, sales, { projectId: project.id, type: "BOQ", title: "BOQ CCTV" });
     if (!boq.ok) throw new Error(boq.message);
-    const vendor = `Megabintang ${tag()}`;
-    const distributor = await createDistributor(db, purchasing, { name: vendor, terms: [{ paymentType: "TOP", topDays: 30 }] });
-    if (!distributor.ok) throw new Error(distributor.message);
-    const workbook = toXlsx(
-      "BOQ",
-      ["No", "Nama Barang", "Spesifikasi", "Kategori", "Uom", "Qty", "Cost Excl PPN", "Total Selling Price Excl PPN", "Distri", "Add"],
-      [
-        ["5", "CCTV", null, null, null, null, null, null, null, null],
-        ["5.1", "Hikvision DS-2CD2143G2-LI", "IP Camera 4 MP 2.8mm", "CCTV", "Unit", 2, 2730700, 6390000, vendor, "TRUE"],
-        ["5.2", "Optional", null, "CCTV", "Unit", 1, 100, 200, null, "FALSE"],
-      ],
-    );
-    const imported = await importRequestItems(db, soa, { requestId: boq.value.id, bytes: workbook });
-    expect(imported).toMatchObject({ ok: true, value: { count: 1, skipped: 1 } });
-    const stored = await db.requestItem.findMany({ where: { requestId: boq.value.id } });
-    expect(stored.map((item) => [item.groupLabel, item.name, item.uom, item.quantity.toString()])).toEqual([["CCTV", "Hikvision DS-2CD2143G2-LI", "Unit", "2"]]);
-
-    const read = await readCalculationSheet(db, sales, workbook);
-    if (!read.ok) throw new Error(read.message);
-    expect(read.value.lines).toEqual([
-      expect.objectContaining({ groupLabel: "CCTV", description: "Hikvision DS-2CD2143G2-LI", quantity: "2", buyPrice: "2730700", sellPrice: "3195000", distributorId: distributor.value.id, vendorTerms: "TOP 30 hari", vendorName: "" }),
+    const first = boqWorkbook([["5.1", "Hikvision DS-2CD2143G2-LI", "IP Camera 4 MP 2.8mm", "CCTV", "Unit", 2, 2730700, 6390000, "Megabintang", "TRUE"]]);
+    expect((await importRequestItems(db, soa, { requestId: boq.value.id, bytes: first })).ok).toBe(true);
+    const revised = boqWorkbook([
+      ["5.1", "Hikvision DS-2CD2143G2-LI", "IP Camera 4 MP 2.8mm", "CCTV", "Unit", 4, 2730700, 12780000, "Megabintang", "TRUE"],
+      ["5.2", "DS-7608NI-M2/8P", "8-ch NVR", "NVR", "Unit", 1, 8022800, 9387000, "Megabintang", "TRUE"],
     ]);
-    expect(await readCalculationSheet(db, soa, workbook)).toMatchObject({ ok: false });
+    expect(await importRequestItems(db, soa, { requestId: boq.value.id, bytes: revised })).toMatchObject({ ok: true, value: { count: 2 } });
+
+    const latest = await latestBoqLines(db, project.id);
+    expect(latest?.code).toBe(boq.value.code);
+    expect(latest?.lines.map((l) => [l.description, l.specification, l.unit, l.quantity, l.sellPrice, l.buyPrice, l.vendorName])).toEqual([
+      ["Hikvision DS-2CD2143G2-LI", "IP Camera 4 MP 2.8mm", "Unit", "4", "", "", ""],
+      ["DS-7608NI-M2/8P", "8-ch NVR", "Unit", "1", "", "", ""],
+    ]);
+
+    const read = await readCalculationSheet(db, sales, revised);
+    if (!read.ok) throw new Error(read.message);
+    expect(read.value.lines).toEqual(latest?.lines);
+    expect(await readCalculationSheet(db, soa, revised)).toMatchObject({ ok: false });
   });
 });
 

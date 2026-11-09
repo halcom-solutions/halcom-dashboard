@@ -7,7 +7,7 @@ import { QUOTATIONS_PATH, QUOTATION_SETTINGS_PATH } from "@/features/navigation/
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/server/auth/current-user";
 import { XLSX_LIMITS } from "@/server/import/xlsx-reader";
-import { importRequestItems, readCalculationSheet, saveRequestItems, type ImportedLine } from "@/server/quotations/boq-items";
+import { importRequestItems, readCalculationSheet, type ImportedLine } from "@/server/quotations/boq-items";
 import {
   acknowledgeQuotation,
   approveQuotation,
@@ -194,22 +194,7 @@ export async function readCalculationSheetAction(formData: FormData): Promise<{ 
   return { ok: true, lines: result.value.lines, message: `${result.value.lines.length} baris dibaca dari sheet. Periksa lalu simpan.${extra ? ` ${extra}.` : ""}` };
 }
 
-/** SOA saves the items of a BOQ (sent as JSON in one field). */
-export async function saveBoqItemsAction(_previous: FormState, formData: FormData): Promise<FormState> {
-  let items: unknown;
-  try {
-    items = JSON.parse(text(formData, "items"));
-  } catch {
-    return { ok: false, message: "Data item tidak terbaca. Muat ulang halaman lalu coba lagi." };
-  }
-  const result = await saveRequestItems(getDb(), await actor(), { requestId: text(formData, "requestId"), items });
-  if (!result.ok) return { ok: false, message: result.message };
-  revalidatePath(`/request/${result.value.code}`);
-  revalidatePath("/projects/[code]", "page");
-  return { ok: true, message: `${result.value.count} item BOQ tersimpan.` };
-}
-
-/** SOA uploads the BOQ workbook; its items replace the BOQ's items. */
+/** SOA send the BOQ workbook; its unit names, specifications, units and quantities replace the BOQ's items. */
 export async function importBoqItemsAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const file = await sheetFile(formData);
   if (!file.ok) return file;
@@ -218,5 +203,5 @@ export async function importBoqItemsAction(_previous: FormState, formData: FormD
   revalidatePath(`/request/${result.value.code}`);
   revalidatePath("/projects/[code]", "page");
   const extra = [result.value.skipped ? `${result.value.skipped} baris dilewati (Add = FALSE atau qty kosong)` : "", ...result.value.warnings.slice(0, 3)].filter(Boolean).join(". ");
-  return { ok: true, message: `${result.value.count} item diimpor.${extra ? ` ${extra}.` : ""}` };
+  return { ok: true, message: `${result.value.count} item dari Excel siap dipakai Sales.${extra ? ` ${extra}.` : ""}` };
 }

@@ -1,9 +1,10 @@
 /**
- * Reads a BOQ worksheet in the layout SOA and Sales already use (BOQ Kemenkebud DC Smart Containment, November 2026): No, Nama Barang,
- * Spesifikasi, Kategori, Uom, Qty, Cost Excl PPN, Selling Price Excl PPN, Total Selling Price Excl PPN, Distri, Stock, Notes, Add. Columns
- * are found by their header, in any order; only the item name and the quantity are needed, so a BOQ from SOA without prices reads as
- * well. A row with a name and no quantity ("1 STORAGE", "7 JASA") is a group heading for the rows under it. A row whose Add column says
- * FALSE is left out, as the workbook leaves it out of its totals.
+ * Reads the BOQ workbook SOA sends (the layout of the BOQ Kemenkebud DC Smart Containment, November 2026). Only what Sales need from it
+ * is mapped: the unit name ("Nama Barang"), the specification, the unit of measure and the quantity, under the group headings. The
+ * category is read only to suggest Goods or Services (Sales can change it). Prices, margins and vendors in the sheet are not taken: Sales
+ * set the selling price and Purchasing the buy price. Columns are found by their header, in any order. A row with a name and no quantity
+ * ("1 STORAGE", "7 JASA") is a group heading for the rows under it. A row whose Add column says FALSE is left out. Anything without a
+ * name in the name column is ignored, such as the old summary block under the table (G34:T93).
  */
 export type BoqSheetItem = {
   /** The sheet row, for messages. */
@@ -13,12 +14,8 @@ export type BoqSheetItem = {
   specification: string | null;
   categoryLabel: string | null;
   uom: string;
-  /** Plain decimals ("2", "1.5"); prices without PPN, per unit ("2731000"), null when the sheet has none. */
+  /** A plain decimal ("2", "1.5"). */
   quantity: string;
-  buyPrice: string | null;
-  sellPrice: string | null;
-  vendor: string | null;
-  note: string | null;
 };
 
 export type BoqSheetResult = { ok: true; items: BoqSheetItem[]; skipped: number; warnings: string[] } | { ok: false; message: string };
@@ -29,12 +26,6 @@ const COLUMN_NAMES = {
   category: ["kategori", "category"],
   uom: ["uom", "satuan", "unit"],
   quantity: ["qty", "quantity", "kuantitas", "jumlah"],
-  buyPrice: ["costexclppn", "hargabeliexclppn", "hargabelisatuan", "hargabeli", "cost"],
-  sellPrice: ["sellingpriceexclppn", "hargajualexclppn", "hargajualsatuan", "hargajual", "sellingprice"],
-  sellTotal: ["totalsellingpriceexclppn", "totalhargajual", "totaljual", "totalsellingprice"],
-  vendor: ["distri", "distributor", "vendor", "vendordistributor", "supplier"],
-  stock: ["stock", "stok", "leadtime", "ketersediaan"],
-  note: ["notes", "note", "catatan", "keterangan"],
   include: ["add", "include", "pakai", "dipakai"],
 } as const;
 type Column = keyof typeof COLUMN_NAMES;
@@ -58,14 +49,13 @@ export function boqColumns(headers: readonly string[]): Partial<Record<Column, n
   return found;
 }
 
-/** A sheet number as a plain decimal with at most `decimals` places, or null when the cell is empty or not a non-negative number. */
-function decimal(text: string | undefined, decimals: number): string | null {
-  const value = clean(text).replace(/\s/g, "");
+/** A sheet quantity as a plain decimal with at most three places, or null when it is empty or not a non-negative number. */
+function quantityOf(text: string): string | null {
+  const value = text.replace(/\s/g, "").replace(",", ".");
   if (!value) return null;
   const number = Number(value);
   if (!Number.isFinite(number) || number < 0) return null;
-  const fixed = number.toFixed(decimals);
-  return fixed.includes(".") ? fixed.replace(/\.?0+$/, "") : fixed;
+  return number.toFixed(3).replace(/\.?0+$/, "");
 }
 
 const FALSE_WORDS = new Set(["false", "0", "tidak", "no", "n"]);
@@ -93,16 +83,12 @@ export function parseBoqSheet(sheet: { headers: readonly string[]; rows: readonl
       skipped += 1;
       return;
     }
-    const quantity = decimal(quantityText, 3);
+    const quantity = quantityOf(quantityText);
     if (quantity === null || Number(quantity) <= 0) {
       warnings.push(`Baris ${rowNumber} (${name.slice(0, 40)}): qty "${quantityText}" tidak terbaca, baris dilewati.`);
       skipped += 1;
       return;
     }
-    const total = decimal(at(row, "sellTotal"), 2);
-    const sellPrice = total !== null ? decimal(String(Number(total) / Number(quantity)), 2) : decimal(at(row, "sellPrice"), 2);
-    const stock = at(row, "stock");
-    const note = [at(row, "note"), stock ? `Stock: ${stock}` : ""].filter(Boolean).join(" · ");
     items.push({
       row: rowNumber,
       groupLabel: group,
@@ -111,10 +97,6 @@ export function parseBoqSheet(sheet: { headers: readonly string[]; rows: readonl
       categoryLabel: at(row, "category").slice(0, 60) || null,
       uom: at(row, "uom").slice(0, 30) || "Unit",
       quantity,
-      buyPrice: decimal(at(row, "buyPrice"), 2),
-      sellPrice,
-      vendor: at(row, "vendor").slice(0, 200) || null,
-      note: note.slice(0, 300) || null,
     });
   });
   if (items.length === 0) return { ok: false, message: "Tidak ada baris item yang terbaca (nama dan qty)." };

@@ -153,8 +153,8 @@ export async function RequestPanel({ request, viewer, inProject = false, openEma
             <BoqItems
               key={request.updatedAt.toISOString()}
               requestId={request.id}
-              editable={mayWork && request.status !== "CANCELLED"}
-              items={request.items.map((item) => ({ groupLabel: item.groupLabel ?? "", name: item.name, specification: item.specification ?? "", categoryLabel: item.categoryLabel ?? "", uom: item.uom, quantity: item.quantity.toString(), note: item.note ?? "" }))}
+              mayUpload={mayWork && request.status !== "CANCELLED"}
+              items={request.items.map((item) => ({ groupLabel: item.groupLabel ?? "", name: item.name, specification: item.specification ?? "", uom: item.uom, quantity: item.quantity.toString() }))}
             />
           ) : null}
           {email ? (

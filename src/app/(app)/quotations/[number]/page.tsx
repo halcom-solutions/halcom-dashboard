@@ -16,6 +16,7 @@ import { getDb } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { requireUser } from "@/server/auth/current-user";
 import { getQuotationDetail, listProjectRfqs, listTeamPics } from "@/server/quotations/queries";
+import { latestBoqLines } from "@/server/quotations/boq-items";
 import { listCostDistributors } from "@/server/quotations/service";
 
 export default function QuotationPage({ params }: PageProps<"/quotations/[number]">) {
@@ -36,10 +37,11 @@ async function Quotation({ params }: Pick<PageProps<"/quotations/[number]">, "pa
   if (!detail) notFound();
   const { actions, calculation, rules } = detail;
   const mode = actions.has("editCalculation") ? "edit" : actions.has("editCosts") ? "costs" : "read";
-  const [distributors, rfqs, pics] = await Promise.all([
+  const [distributors, rfqs, pics, boq] = await Promise.all([
     mode === "read" ? Promise.resolve([]) : listCostDistributors(db, user),
     listProjectRfqs(db, detail.projectId),
     actions.has("approve") || actions.has("acknowledge") ? listTeamPics(db, user.role) : Promise.resolve([]),
+    mode === "edit" ? latestBoqLines(db, detail.projectId) : Promise.resolve(null),
   ]);
   const lines: EditorLine[] = detail.lines.map((row) => ({
     groupLabel: row.groupLabel ?? "",
@@ -139,6 +141,7 @@ async function Quotation({ params }: Pick<PageProps<"/quotations/[number]">, "pa
             steps={rules.steps}
             distributors={distributors}
             rfqs={rfqs}
+            boq={boq ? { code: boq.code, lines: boq.lines.map((row) => ({ ...row, costDescription: "" })) } : null}
           />
         </CardContent>
       </Card>

@@ -419,12 +419,27 @@ export function NextStepForm({ sourceId, nextType, hasDecision }: { sourceId: st
   );
 }
 
-/** SOA or Purchasing hands the request to one of their PICs: an operational assignee, not a login account. */
-export function AssignPicForm({ requestId, current, pics, teamLabel }: { requestId: string; current: string; pics: readonly PicOption[]; teamLabel: string }) {
+/**
+ * SOA or Purchasing hands the request to one of their PICs: an operational assignee, not a login account. On an RFQ the same form
+ * (one Save) also names the distributor, picked from a searchable list.
+ */
+export function AssignPicForm({
+  requestId,
+  current,
+  pics,
+  teamLabel,
+  distributor,
+}: {
+  requestId: string;
+  current: string;
+  pics: readonly PicOption[];
+  teamLabel: string;
+  distributor?: { current: string; options: readonly MasterOption[] };
+}) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(assignPicAction, null);
 
   return (
-    <form key={current ?? ""} action={formAction} className="grid gap-3 sm:grid-cols-[minmax(0,14rem)_auto] sm:items-end">
+    <form key={`${current}|${distributor?.current ?? ""}`} action={formAction} className="grid gap-3 sm:grid-cols-2 sm:items-start">
       <input type="hidden" name="requestId" value={requestId} />
       <Field id={`pic-${requestId}`} label="PIC" hint={pics.length === 0 ? `No active ${teamLabel} PIC yet. An administrator adds them under PICs.` : undefined}>
         <NativeSelect id={`pic-${requestId}`} name="picId" defaultValue={current}>
@@ -436,9 +451,20 @@ export function AssignPicForm({ requestId, current, pics, teamLabel }: { request
           ))}
         </NativeSelect>
       </Field>
-      <Button type="submit" disabled={pending}>
-        <SaveText what="PIC" pending={pending} />
-      </Button>
+      {distributor ? (
+        <Field
+          id={`distributor-${requestId}`}
+          label="Distributor"
+          hint={distributor.options.length === 0 ? "Belum ada distributor aktif. Tambahkan di menu Distributors." : "Ketik nama, alias, atau pembayaran untuk mencari. Tombol X mengosongkan."}
+        >
+          <SearchSelect id={`distributor-${requestId}`} name="distributorId" label="distributor" options={distributor.options} defaultValue={distributor.current} placeholder="Cari distributor" />
+        </Field>
+      ) : null}
+      <div className="sm:col-span-2">
+        <Button type="submit" disabled={pending}>
+          <SaveText what={distributor ? "PIC and distributor" : "PIC"} pending={pending} />
+        </Button>
+      </div>
       <div className="sm:col-span-2">
         <FormStatus state={state} />
       </div>

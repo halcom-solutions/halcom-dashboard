@@ -4,7 +4,7 @@ import type { Role } from "@/domain/access/roles";
 import { sheetHeaders } from "@/domain/distributors/sheet";
 import { getDb } from "@/lib/db";
 import { importDistributors } from "@/server/distributors/import";
-import { assignRequestDistributor, createDistributor, listAssignableDistributors, listDistributors, updateDistributor } from "@/server/distributors/service";
+import { assignRequestDistributor, createDistributor, deleteDistributor, listAssignableDistributors, listDistributors, updateDistributor } from "@/server/distributors/service";
 import { toXlsx } from "@/server/export/xlsx";
 import { createProject, createRequest } from "@/server/requests/service";
 import { makeUser } from "./helpers";
@@ -88,6 +88,24 @@ describe("naming the distributor of an RFQ", () => {
     const boq = await createRequest(db, sales, { projectId: project.value.id, type: "BOQ", title: "A BOQ" });
     if (!boq.ok) throw new Error(boq.message);
     expect(await assignRequestDistributor(db, await actorOf("ADMIN"), { requestId: boq.value.id, distributorId: created.value.id })).toMatchObject({ ok: false, code: "INVALID_INPUT" });
+  });
+});
+
+describe("deleting a distributor", () => {
+  it("deletes an unused one (audited) and refuses one an RFQ names, and other roles", async () => {
+    const purchasing = await actorOf("PURCHASING");
+    const spare = await createDistributor(db, purchasing, { name: `PT Spare ${tag()}`, paymentType: "CBD" });
+    const used = await createDistributor(db, purchasing, { name: `PT Used ${tag()}`, paymentType: "CBD" });
+    if (!spare.ok || !used.ok) throw new Error("setup");
+    const request = await rfq();
+    await assignRequestDistributor(db, purchasing, { requestId: request.id, distributorId: used.value.id });
+
+    expect(await deleteDistributor(db, await actorOf("SALES"), { id: spare.value.id })).toMatchObject({ ok: false, code: "FORBIDDEN" });
+    expect(await deleteDistributor(db, purchasing, { id: used.value.id })).toMatchObject({ ok: false, code: "INVALID_INPUT" });
+    expect(await deleteDistributor(db, purchasing, { id: spare.value.id })).toMatchObject({ ok: true });
+    await expect(db.distributor.count({ where: { id: spare.value.id } })).resolves.toBe(0);
+    await expect(db.auditEvent.count({ where: { action: "distributor.deleted", entityId: spare.value.id } })).resolves.toBe(1);
+    expect(await deleteDistributor(db, purchasing, { id: spare.value.id })).toMatchObject({ ok: false, code: "NOT_FOUND" });
   });
 });
 

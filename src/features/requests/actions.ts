@@ -7,6 +7,7 @@ import { marginFields } from "@/domain/projects/margin";
 import { PROJECTS_PATH, REQUESTS_PATH } from "@/features/navigation/links";
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/server/auth/current-user";
+import { assignRequestDistributor } from "@/server/distributors/service";
 import { assignRequestPic } from "@/server/pics/service";
 import { deleteRequest } from "@/server/requests/delete";
 import { changeRequestStatus, createProject, createRequest, handOverToPurchasing, requestRevision, setRequestDates, setProjectPhase, stopFlow } from "@/server/requests/service";
@@ -113,14 +114,25 @@ export async function handOverAction(_previous: FormState, formData: FormData): 
   redirect(`/request/${result.value.code}?email=1`);
 }
 
-/** SOA or Purchasing hands a request to one of their PICs (or takes it back with an empty choice). */
+/**
+ * SOA or Purchasing hands a request to one of their PICs (or takes it back with an empty choice). On an RFQ the same form also names the
+ * distributor (a `distributorId` field is sent, empty to clear); the PIC is saved first and each part is re-checked by its own service.
+ */
 export async function assignPicAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const user = await requireUser();
-  const result = await assignRequestPic(getDb(), { id: user.id, role: user.role }, { requestId: text(formData, "requestId"), picId: text(formData, "picId") ?? "" });
+  const actor = { id: user.id, role: user.role };
+  const requestId = text(formData, "requestId");
+  const result = await assignRequestPic(getDb(), actor, { requestId, picId: text(formData, "picId") ?? "" });
   if (!result.ok) return { ok: false, message: result.message };
+  let message = result.value.picId ? "PIC saved." : "PIC cleared.";
+  if (formData.has("distributorId")) {
+    const distributor = await assignRequestDistributor(getDb(), actor, { requestId, distributorId: text(formData, "distributorId") ?? "" });
+    if (!distributor.ok) return { ok: false, message: `PIC tersimpan, tetapi distributor gagal: ${distributor.message}` };
+    message = distributor.value.distributorId ? "PIC dan distributor tersimpan." : "PIC tersimpan, distributor dikosongkan.";
+  }
   revalidatePath(`/request/${result.value.code}`);
   revalidatePath(REQUESTS_PATH);
-  return { ok: true, message: result.value.picId ? "PIC saved." : "PIC cleared." };
+  return { ok: true, message };
 }
 
 /** SOA labels a project with the phase of the work (or clears the label). */

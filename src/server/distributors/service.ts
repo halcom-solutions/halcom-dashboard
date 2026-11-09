@@ -207,3 +207,28 @@ export async function assignRequestDistributor(db: PrismaClient, claimedActor: A
     return { ok: true, value: { code: request.code, distributorId: wanted } };
   });
 }
+
+/**
+ * Deletes a distributor that no request has ever named. One that an RFQ names (even a hidden RFQ) is kept, because the RFQ and its
+ * history must stay readable: it is turned off instead. The audit entry keeps what was deleted.
+ */
+export async function deleteDistributor(db: PrismaClient, claimedActor: Actor, input: unknown): Promise<DistributorResult<{ name: string }>> {
+  const parsed = z.object({ id: z.uuid() }).strict().safeParse(input);
+  if (!parsed.success) return fail("INVALID_INPUT", "Distributor tidak valid.");
+  if (!can(claimedActor.role, "distributors.manage")) return fail("FORBIDDEN", FORBIDDEN);
+  const { id } = parsed.data;
+
+  return db.$transaction(async (tx): Promise<DistributorResult<{ name: string }>> => {
+    const actor = await loadActor(tx, claimedActor);
+    if (!actor || !can(actor.role, "distributors.manage")) return fail("FORBIDDEN", FORBIDDEN);
+    const current = await tx.distributor.findUnique({ where: { id } });
+    if (!current) return fail("NOT_FOUND", "Distributor tidak ditemukan.");
+    const used = await tx.request.count({ where: { distributorId: id } });
+    if (used > 0) return fail("INVALID_INPUT", `${current.name} dipakai ${used} RFQ, jadi tidak bisa dihapus. Nonaktifkan lewat Edit agar tidak bisa dipilih lagi.`);
+    await tx.distributor.delete({ where: { id } });
+    await tx.auditEvent.create({
+      data: { actorId: actor.id, action: "distributor.deleted", entityType: "distributor", entityId: id, before: { name: current.name, alias: current.alias, payment: paymentTermsLabel(current) } },
+    });
+    return { ok: true, value: { name: current.name } };
+  });
+}

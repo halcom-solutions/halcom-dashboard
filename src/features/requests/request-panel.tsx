@@ -17,7 +17,6 @@ import { getTeamSetting } from "@/server/settings/team-settings";
 import { listAssignablePics, listPicAssignments } from "@/server/pics/service";
 import { picTeamOf, PIC_TEAM_LABELS } from "@/domain/pics/teams";
 import { distributorLabel, paymentTermsLabel } from "@/domain/distributors/payment";
-import { AssignDistributorForm } from "@/features/distributors/distributor-forms";
 import { listAssignableDistributors } from "@/server/distributors/service";
 import { DeleteRequest } from "./delete-request";
 import { EmailDialog } from "./email-dialog";
@@ -172,37 +171,33 @@ export async function RequestPanel({ request, viewer, inProject = false, openEma
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              <h3>PIC</h3>
+              <h3>{request.type === "RFQ" ? "PIC dan distributor" : "PIC"}</h3>
             </CardTitle>
             <CardDescription>
               PIC {PIC_TEAM_LABELS[picTeamOf(request.type)]} yang mengerjakan request ini. Perubahan tercatat di riwayat penugasan.
+              {request.type === "RFQ" ? " Distributor yang dituju RFQ ini ikut dipilih di sini; jenis pembayarannya mengikuti data distributor." : null}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <AssignPicForm requestId={request.id} current={request.picId ?? ""} pics={pics} teamLabel={PIC_TEAM_LABELS[picTeamOf(request.type)]} />
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {mayWork && request.type === "RFQ" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              <h3>Distributor</h3>
-            </CardTitle>
-            <CardDescription>Distributor yang dituju RFQ ini. Jenis pembayarannya mengikuti data distributor. Perubahan tercatat di audit log.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AssignDistributorForm
+            <AssignPicForm
               requestId={request.id}
-              current={request.distributorId ?? ""}
-              options={[
-                ...distributors.map((d) => ({ id: d.id, label: `${distributorLabel(d)} · ${paymentTermsLabel(d)}` })),
-                // A distributor that was turned off after it was chosen stays visible, so saving does not silently clear it.
-                ...(request.distributorId && !distributors.some((d) => d.id === request.distributorId) && request.distributor
-                  ? [{ id: request.distributorId, label: `${distributorLabel(request.distributor)} (nonaktif)` }]
-                  : []),
-              ]}
+              current={request.picId ?? ""}
+              pics={pics}
+              teamLabel={PIC_TEAM_LABELS[picTeamOf(request.type)]}
+              distributor={
+                request.type === "RFQ"
+                  ? {
+                      current: request.distributorId ?? "",
+                      options: [
+                        ...distributors.map((d) => ({ id: d.id, name: `${distributorLabel(d)} · ${paymentTermsLabel(d)}` })),
+                        // A distributor that was turned off after it was chosen stays visible, so saving does not silently clear it.
+                        ...(request.distributorId && !distributors.some((d) => d.id === request.distributorId) && request.distributor
+                          ? [{ id: request.distributorId, name: `${distributorLabel(request.distributor)} (nonaktif)` }]
+                          : []),
+                      ],
+                    }
+                  : undefined
+              }
             />
           </CardContent>
         </Card>

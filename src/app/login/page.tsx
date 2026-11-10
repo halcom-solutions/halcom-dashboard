@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { BrandLogo } from "@/components/app-shell/brand-logo";
@@ -25,6 +26,9 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
         <Suspense fallback={<SignInCard accounts={[]} remembered={[]} chosen="" />}>
           <SignIn searchParams={searchParams} />
         </Suspense>
+        <Link href="/privacy" className="text-center text-xs text-muted-foreground underline-offset-4 hover:underline">
+          Privacy statement
+        </Link>
       </div>
       {/* Signed-in users skip the form. This reads the session, so it streams in behind Suspense. */}
       <Suspense>

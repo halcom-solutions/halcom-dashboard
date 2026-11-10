@@ -192,6 +192,7 @@ describe("team view and years", () => {
 
     const years = await getTargetYears(db, sales, { salesOwnerId: sales.id, thisYear: 2026 });
 
-    expect(years).toEqual([2026, 2027, year].sort((x, y) => x - y));
+    // The random year is 2010 to 2099, so now and then it is this year or the next: the list holds each year once.
+    expect(years).toEqual([...new Set([2026, 2027, year])].sort((x, y) => x - y));
   });
 });

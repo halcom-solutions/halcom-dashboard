@@ -94,8 +94,12 @@ export default function PrivacyPage() {
           Questions, corrections and removal
         </h2>
         <p className="text-sm">
-          Staff can ask the administrator of {APP_NAME} (the Superadmin) to correct or deactivate their account. If you reached this
-          site by mistake or believe it is wrongly flagged, contact PT Halcom Inovasi through the company website.
+          Staff can ask the administrator of {APP_NAME} (the Superadmin) to correct or deactivate their account. For any other
+          question, including if you reached this site by mistake or believe it is wrongly flagged, write to{" "}
+          <a href="mailto:support@halcominovasi.co.id" className="text-primary underline-offset-4 hover:underline">
+            support@halcominovasi.co.id
+          </a>
+          .
         </p>
       </section>
 
@@ -107,7 +111,7 @@ export default function PrivacyPage() {
           {APP_NAME} adalah alat internal PT Halcom Inovasi untuk karyawan. Data yang disimpan: nama, email perusahaan dan peran akun;
           kata sandi hanya sebagai hash; token sesi (hanya hash); penghitung gagal login dengan hash alamat jaringan; log audit; dan
           data bisnis yang dimasukkan karyawan. Cookie hanya untuk sesi, akun yang diingat di browser, dan pilihan tema. Tidak ada
-          analitik, iklan, atau pelacak pihak ketiga, dan data tidak dibagikan ke luar perusahaan.
+          analitik, iklan, atau pelacak pihak ketiga, dan data tidak dibagikan ke luar perusahaan. Pertanyaan: support@halcominovasi.co.id.
         </p>
       </section>
 

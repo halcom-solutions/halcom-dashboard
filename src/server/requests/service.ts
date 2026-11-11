@@ -5,7 +5,7 @@ import type { Role } from "@/domain/access/roles";
 import type { RequestStatus } from "@/domain/requests/status";
 import { slaOf } from "@/domain/requests/sla";
 import { getTeamSetting } from "@/server/settings/team-settings";
-import { allowedTransitions, canHandOver, canTransition, nextRequestType, PO_NEEDS_RFQ, reasonRequired, REQUEST_STATUS_LABELS } from "@/domain/requests/status";
+import { allowedTransitions, canHandOver, canTransition, isRetired, nextRequestType, PO_NEEDS_RFQ, reasonRequired, REQUEST_STATUS_LABELS } from "@/domain/requests/status";
 import { canContinueFlow, workPermission } from "@/domain/requests/access";
 import { parseCommercialValue } from "@/domain/projects/commercial";
 import { z } from "zod";
@@ -401,7 +401,7 @@ export async function changeRequestStatus(
   db: PrismaClient,
   claimedActor: Actor,
   input: unknown,
-): Promise<WorkResult<{ code: string; status: string }>> {
+): Promise<WorkResult<{ code: string; status: string; override: boolean }>> {
   const parsed = statusChangeSchema.safeParse(input);
   if (!parsed.success) return fail("INVALID_INPUT", parsed.error.issues[0]?.message);
   const { requestId, to, reason } = parsed.data;
@@ -418,7 +418,9 @@ export async function changeRequestStatus(
     // Only the team that works on this type moves its requests (SOA for a BOQ, Purchasing for an RFQ or PO; admins too).
     if (!can(actor.role, workPermission(request.type))) return fail("FORBIDDEN");
 
-    if (!canTransition(request.status, to, request.type)) {
+    // A move outside the flow (a completed request cancelled, a cancelled one reopened) is a correction only a superadmin may make.
+    const outsideFlow = !canTransition(request.status, to, request.type);
+    if (outsideFlow && !(can(actor.role, "requests.override-status") && to !== request.status && !isRetired(to))) {
       const options = allowedTransitions(request.status, request.type).map((s) => REQUEST_STATUS_LABELS[s]);
       return fail(
         "INVALID_STATE",
@@ -426,7 +428,7 @@ export async function changeRequestStatus(
           (options.length > 0 ? ` Allowed: ${options.join(", ")}.` : " It is final."),
       );
     }
-    if (reasonRequired(request.status, to) && !reason) return fail("INVALID_INPUT", "Isi alasan untuk perubahan ini.");
+    if ((outsideFlow || reasonRequired(request.status, to)) && !reason) return fail("INVALID_INPUT", "Isi alasan untuk perubahan ini.");
     // An RFQ or PO completed after its deadline needs the reason; it is kept on the request, where everyone can read it.
     const completedLate = to === "COMPLETED" && request.type !== "BOQ" && (await isOverdueNow(tx, request));
     if (completedLate && !reason) return fail("INVALID_INPUT", "Request ini melewati batas SLA. Isi catatan alasan keterlambatan.");
@@ -439,13 +441,14 @@ export async function changeRequestStatus(
         // Completing a revised request again keeps the first completion, so a revision does not make the first SLA late. A revision keeps the
         // first late note unless the revision itself ends late (then its reason replaces it).
         overdueNote: to === "COMPLETED" ? (completedLate ? reason : request.status === "REVISION" ? request.overdueNote : null) : request.overdueNote,
-        completedAt: to === "COMPLETED" ? (request.status === "REVISION" ? (request.completedAt ?? now) : now) : to === "REVISION" ? request.completedAt : null,
+        // A database check ties the completion date to Completed and Revision, so a correction into Revision keeps the date or takes now.
+        completedAt: to === "COMPLETED" ? (request.status === "REVISION" ? (request.completedAt ?? now) : now) : to === "REVISION" ? (request.completedAt ?? now) : null,
       },
     });
     await tx.requestStatusHistory.create({
       data: { requestId: request.id, fromStatus: request.status, toStatus: to, changedById: actor.id, changedAt: now, reason },
     });
-    await audit(tx, actor.id, "request", "request.status_changed", request.id, { status: request.status }, { status: to, reason });
+    await audit(tx, actor.id, "request", outsideFlow ? "request.status_overridden" : "request.status_changed", request.id, { status: request.status }, { status: to, reason });
     // A finished request asks nothing more of the team: its SLA warnings and dangers are read.
     if (to === "COMPLETED" || to === "CANCELLED") await closeSlaAlerts(tx, request.id);
     await notify(tx, {
@@ -456,7 +459,7 @@ export async function changeRequestStatus(
       body: reason,
       href: `/request/${request.code}`,
     });
-    return succeed({ code: request.code, status: to });
+    return succeed({ code: request.code, status: to, override: outsideFlow });
   });
 }
 

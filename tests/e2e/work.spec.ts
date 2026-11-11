@@ -247,7 +247,7 @@ test.describe("projects and requests", () => {
     await soa.goto(requestUrl);
     await expect(soa.locator(`li[id^="request-RFQ-S"] > details[open]`)).toBeVisible();
     await expect(soa.getByRole("heading", { name: /Email text/ })).toHaveCount(0);
-    await expect(soa.getByText(/dragging this request/)).toHaveCount(0); // SOA do not work on an RFQ: no board hint
+    await expect(soa.getByLabel("Ubah status ke")).toHaveCount(0); // SOA do not work on an RFQ: no status drop-down
     await soa.context().close();
   });
 
@@ -693,7 +693,7 @@ test.describe("projects and requests", () => {
     const finance = await asRole(browser, "FINANCE");
     await finance.goto(`/request/${rfq}`);
     await expect(finance.locator(`li#request-${rfq} > details[open]`)).toBeVisible();
-    await expect(finance.getByText(/dragging this request/)).toHaveCount(0); // Finance only reads
+    await expect(finance.getByLabel("Ubah status ke")).toHaveCount(0); // Finance only reads
     await expect(finance.getByLabel("Subjek", { exact: true })).toHaveCount(0);
     await soa.context().close();
     await purchasing.context().close();

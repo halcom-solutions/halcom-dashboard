@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/toast";
 import { startAsksForPic, type PicOption } from "@/domain/pics/teams";
-import { allowedTransitions, boardColumns, columnOf, reasonRequired, REQUEST_STATUS_LABELS, type RequestStatus } from "@/domain/requests/status";
+import { boardColumns, columnOf, isOverrideMove, movesFor, reasonRequired, REQUEST_STATUS_LABELS, type RequestStatus } from "@/domain/requests/status";
 import type { RequestType } from "@/domain/requests/types";
 import { cn } from "@/lib/utils";
 import type { RequestRow } from "@/server/requests/queries";
@@ -31,13 +32,29 @@ const FOLDED: ReadonlySet<RequestStatus> = new Set<RequestStatus>(["REVISION", "
  * Only the moves the flow allows light up as drop targets (a BOQ gets a Revision column after Completed; an RFQ or PO does not). A
  * cancellation, or reopening a completed RFQ or PO, asks for a reason first. People who may not work on a request's type see its card
  * but cannot drag it. The server checks every move again. With the keyboard: focus a card and press Shift + Arrow Left or Right.
+ * A superadmin (`canOverride`) can drop a card on any other column, outside the flow, with a reason. While a card is dragged near the top or
+ * bottom edge of the screen the page scrolls (and a column list near its own edge), so a long board can be reached without dropping the card.
  */
-export function RequestBoard({ rows, type, movable, pics }: { rows: RequestRow[]; type: RequestType | null; movable: Readonly<Record<RequestType, boolean>>; pics: readonly PicOption[] }) {
+export function RequestBoard({
+  rows,
+  type,
+  movable,
+  pics,
+  canOverride = false,
+}: {
+  rows: RequestRow[];
+  type: RequestType | null;
+  movable: Readonly<Record<RequestType, boolean>>;
+  pics: readonly PicOption[];
+  canOverride?: boolean;
+}) {
   const router = useRouter();
   const [cards, setCards] = useState(rows);
   const [dragging, setDragging] = useState<RequestRow | null>(null);
   const [over, setOver] = useState<RequestStatus | null>(null);
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  // A failure also stays on the page as an alert (the toast fades); a success is only a toast.
+  const [message, setMessage] = useState<string | null>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [reason, setReason] = useState("");
   const [, startTransition] = useTransition();
@@ -51,7 +68,47 @@ export function RequestBoard({ rows, type, movable, pics }: { rows: RequestRow[]
   const [opened, setOpened] = useState<ReadonlySet<RequestStatus>>(new Set());
   const toggle = (status: RequestStatus) => setOpened((current) => { const next = new Set(current); if (!next.delete(status)) next.add(status); return next; });
 
-  const accepts = (card: RequestRow | null, to: RequestStatus) => card !== null && movable[card.type] && allowedTransitions(card.status, card.type).includes(to);
+  const accepts = (card: RequestRow | null, to: RequestStatus) => card !== null && movable[card.type] && movesFor(card.status, card.type, canOverride).includes(to);
+
+  // Scroll while dragging: the drag keeps the page still otherwise, and on a small screen the columns do not fit.
+  useEffect(() => {
+    if (!dragging) return;
+    const EDGE = 96;
+    const MAX_STEP = 28;
+    let pointer: { x: number; y: number } | null = null;
+    let frame = 0;
+    const onOver = (event: DragEvent) => {
+      pointer = { x: event.clientX, y: event.clientY };
+    };
+    const step = (distance: number) => Math.ceil((1 - Math.max(0, distance) / EDGE) * MAX_STEP);
+    const pageScroller = (() => {
+      for (let node = boardRef.current?.parentElement ?? null; node; node = node.parentElement) {
+        const overflow = getComputedStyle(node).overflowY;
+        if ((overflow === "auto" || overflow === "scroll") && node.scrollHeight > node.clientHeight) return node;
+      }
+      return null;
+    })();
+    const tick = () => {
+      if (pointer) {
+        const { x, y } = pointer;
+        const list = document.elementFromPoint(x, y)?.closest<HTMLElement>("ul[data-board-list]") ?? null;
+        const box = list?.getBoundingClientRect();
+        const scrollable = list !== null && list.scrollHeight > list.clientHeight;
+        // A column list that can scroll takes the pointer near its own top or bottom edge first.
+        if (scrollable && box && y - box.top < EDGE / 2 && list.scrollTop > 0) list.scrollTop -= step((y - box.top) * 2);
+        else if (scrollable && box && box.bottom - y < EDGE / 2 && list.scrollTop + list.clientHeight < list.scrollHeight) list.scrollTop += step((box.bottom - y) * 2);
+        else if (y < EDGE) (pageScroller ?? window).scrollBy(0, -step(y));
+        else if (window.innerHeight - y < EDGE) (pageScroller ?? window).scrollBy(0, step(window.innerHeight - y));
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    document.addEventListener("dragover", onOver);
+    frame = requestAnimationFrame(tick);
+    return () => {
+      document.removeEventListener("dragover", onOver);
+      cancelAnimationFrame(frame);
+    };
+  }, [dragging]);
 
   function move(card: RequestRow, to: RequestStatus, why?: string, picId?: string) {
     const picName = picId ? (pics.find((pic) => pic.id === picId)?.name ?? card.assigneeName) : card.assigneeName;
@@ -61,10 +118,13 @@ export function RequestBoard({ rows, type, movable, pics }: { rows: RequestRow[]
       const result = await moveRequestAction(card.id, to, why, picId);
       if (!result.ok) {
         setCards((current) => current.map((row) => (row.id === card.id ? card : row)));
-        setMessage({ ok: false, text: result.message });
+        setMessage(result.message);
+        toast.danger(result.message);
         return;
       }
-      setMessage({ ok: true, text: `${card.code} is now ${REQUEST_STATUS_LABELS[to]}.` });
+      // A move outside the usual flow (a superadmin's correction) comes back as a warning.
+      if (result.level === "warning") toast.warning(result.message);
+      else toast.success(`${card.code} is now ${REQUEST_STATUS_LABELS[to]}.`);
       router.refresh();
     });
   }
@@ -79,7 +139,7 @@ export function RequestBoard({ rows, type, movable, pics }: { rows: RequestRow[]
       startDialog.current?.showModal();
       return;
     }
-    if (reasonRequired(card.status, to) || lateCompletion(card, to)) {
+    if (reasonRequired(card.status, to) || lateCompletion(card, to) || isOverrideMove(card.status, to, card.type)) {
       setReason("");
       setPending({ card, to });
       dialog.current?.showModal();
@@ -127,7 +187,7 @@ export function RequestBoard({ rows, type, movable, pics }: { rows: RequestRow[]
 
 
   function renderCard(card: RequestRow) {
-    const mayMove = movable[card.type] && allowedTransitions(card.status, card.type).length > 0;
+    const mayMove = movable[card.type] && movesFor(card.status, card.type, canOverride).length > 0;
     return (
       <li
         key={card.id}
@@ -223,7 +283,7 @@ export function RequestBoard({ rows, type, movable, pics }: { rows: RequestRow[]
           <p className="px-1 pb-2 text-xs text-muted-foreground">None.</p>
         ) : (
           // Completed is the long column, so its cards sit in two columns instead of one tall stack. Each column scrolls inside itself, up to twice the screen height.
-          <ul tabIndex={0} aria-label={`Kartu ${REQUEST_STATUS_LABELS[status]}`} className={cn("max-h-[calc(200svh-32rem)] min-h-24 gap-2 overflow-y-auto pr-1", status === "COMPLETED" ? "grid sm:grid-cols-2" : "flex flex-col")}>
+          <ul tabIndex={0} data-board-list aria-label={`Kartu ${REQUEST_STATUS_LABELS[status]}`} className={cn("max-h-[calc(200svh-32rem)] min-h-24 gap-2 overflow-y-auto pr-1", status === "COMPLETED" ? "grid sm:grid-cols-2" : "flex flex-col")}>
             {inColumn.map(renderCard)}
           </ul>
         )}
@@ -234,10 +294,10 @@ export function RequestBoard({ rows, type, movable, pics }: { rows: RequestRow[]
   return (
     <div>
       <p className="mb-2 text-xs text-muted-foreground">Seret kartu ke kolom lain untuk mengubah status. Detail revisi dan pertanyaan ke Sales lewat email.</p>
-      <div role="status" aria-live="polite" className={cn("mb-2 min-h-5 text-sm", message?.ok === false ? "text-destructive" : "text-muted-foreground")}>
-        {message?.text}
+      <div role="alert" className="mb-2 min-h-5 text-sm text-destructive">
+        {message}
       </div>
-      <div className={cn("grid gap-3 md:grid-cols-2", "lg:grid-cols-(--board-cols)")} style={{ "--board-cols": mainColumns.map((status) => (status === "COMPLETED" ? "2fr" : "1fr")).join(" ") } as React.CSSProperties} role="group" aria-label="Request board">
+      <div ref={boardRef} className={cn("grid gap-3 md:grid-cols-2", "lg:grid-cols-(--board-cols)")} style={{ "--board-cols": mainColumns.map((status) => (status === "COMPLETED" ? "2fr" : "1fr")).join(" ") } as React.CSSProperties} role="group" aria-label="Request board">
         {mainColumns.map((status) => renderColumn(status))}
       </div>
       {foldedColumns.length > 0 ? (
@@ -303,23 +363,35 @@ export function RequestBoard({ rows, type, movable, pics }: { rows: RequestRow[]
         >
           <div>
             <h2 id="board-reason-title" className="text-base font-semibold">
-              {pending?.to === "COMPLETED" ? `Selesaikan ${pending.card.code} yang overdue?` : `${pending?.to === "CANCELLED" ? "Cancel" : "Revisi"} ${pending?.card.code}?`}
+              {pending && isOverrideMove(pending.card.status, pending.to, pending.card.type)
+                ? `Pindahkan ${pending.card.code} ke ${REQUEST_STATUS_LABELS[pending.to]}?`
+                : pending?.to === "COMPLETED"
+                  ? `Selesaikan ${pending.card.code} yang overdue?`
+                  : `${pending?.to === "CANCELLED" ? "Cancel" : "Revisi"} ${pending?.card.code}?`}
             </h2>
             <p className="text-sm text-muted-foreground">
-              {pending?.to === "COMPLETED"
+              {pending && isOverrideMove(pending.card.status, pending.to, pending.card.type)
+                ? "Perpindahan ini di luar alur biasa (hanya Superadmin). Tulis alasannya; masuk ke riwayat status dan audit log."
+                : pending?.to === "COMPLETED"
                 ? "Request ini melewati batas SLA. Tulis alasan keterlambatan: catatan ini bisa dilihat semua orang di daftar request dan di Purchasing dashboard."
                 : pending?.to === "REVISION"
                   ? "Tulis apa yang perlu diubah. Catatan masuk ke riwayat status, dan jam SLA revisi mulai dari sekarang."
                   : "Say why. It is kept in the status history."}
             </p>
           </div>
-          <Textarea aria-label={pending?.to === "COMPLETED" ? "Catatan keterlambatan" : "Reason"} value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} required className="min-h-24" />
+          <Textarea aria-label={pending?.to === "COMPLETED" && !isOverrideMove(pending.card.status, pending.to, pending.card.type) ? "Catatan keterlambatan" : "Reason"} value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} required className="min-h-24" />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={cancelDialog}>
               Keep it as it is
             </Button>
             <Button type="submit" variant={pending?.to === "CANCELLED" ? "destructive" : "default"} disabled={reason.trim() === ""}>
-              {pending?.to === "COMPLETED" ? "Selesaikan request" : pending?.to === "CANCELLED" ? "Cancel request" : "Request revision"}
+              {pending && isOverrideMove(pending.card.status, pending.to, pending.card.type)
+                ? `Pindahkan ke ${REQUEST_STATUS_LABELS[pending.to]}`
+                : pending?.to === "COMPLETED"
+                  ? "Selesaikan request"
+                  : pending?.to === "CANCELLED"
+                    ? "Cancel request"
+                    : "Request revision"}
             </Button>
           </div>
         </form>

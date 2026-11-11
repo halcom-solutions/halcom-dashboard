@@ -237,6 +237,7 @@ export async function RequestList({
           rows={rows}
           type={type ?? null}
           movable={Object.fromEntries(REQUEST_TYPES.map((t) => [t, canWorkOn(viewer.role, t)])) as Record<RequestType, boolean>}
+          canOverride={can(viewer.role, "requests.override-status")}
           pics={pics}
         />
       ) : (

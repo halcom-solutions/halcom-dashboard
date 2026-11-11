@@ -59,6 +59,19 @@ export function canTransition(from: RequestStatus, to: RequestStatus, type: Requ
   return allowedTransitions(from, type).includes(to);
 }
 
+/**
+ * Where a person can move a request to. The flow above is for everybody who works the type; a superadmin may also correct a request to any
+ * other offered status (a completed one back to cancelled, a cancelled one reopened). Those moves are outside the flow, so they always need a
+ * reason and are audited as an override. The retired status is never a target.
+ */
+export function movesFor(from: RequestStatus, type: RequestType, canOverride: boolean): readonly RequestStatus[] {
+  if (!canOverride) return allowedTransitions(from, type);
+  return ACTIVE_STATUSES.filter((status) => status !== from);
+}
+
+/** A move that the flow does not allow: only a superadmin can make it. */
+export const isOverrideMove = (from: RequestStatus, to: RequestStatus, type: RequestType): boolean => !canTransition(from, to, type);
+
 /** Cancelling and sending a completed request back for revision must say why, so they cannot be hidden silently (brief §8.4). */
 export function reasonRequired(_from: RequestStatus, to: RequestStatus): boolean {
   return to === "CANCELLED" || to === "REVISION";

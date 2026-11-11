@@ -446,7 +446,7 @@ export const GUIDE_NODES: readonly GuideNode[] = [
       steps: [
         "Buka RFQ requests dan buka request baru tersebut.",
         "Di kartu PIC, pilih PIC lalu pilih Save PIC.",
-        "Buka RFQ board dan seret kartunya dari Submitted ke In progress.",
+        "Ubah statusnya: pilih In progress di kartu Status lalu pilih PIC dan simpan, atau buka RFQ board dan seret kartunya dari Submitted ke In progress.",
       ],
       editable: ["PIC", "Request status"],
       handoff: "Requester dan Sales PIC proyek diberi tahu setiap kali status berubah.",

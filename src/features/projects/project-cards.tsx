@@ -34,6 +34,7 @@ export function ProjectCards({ projects, showing }: { projects: readonly Project
       showing.has("salesPic") ? ["Sales PIC", project.salesOwnerName.replace(/ \(external\)$/, "")] : null,
       showing.has("technicalPic") ? ["Technical PIC", project.technicalPicName ?? "–"] : null,
       showing.has("lastUpdated") ? ["Last updated", formatDay(project.lastUpdated)] : null,
+      showing.has("updatedBy") && project.updatedByName ? ["Updated By", project.updatedByName] : null,
       showing.has("openRequests") ? ["Open requests", `${project.openRequests} / ${project.totalRequests}`] : null,
     ].filter((row): row is [string, string] => row !== null);
 

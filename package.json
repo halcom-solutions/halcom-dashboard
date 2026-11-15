@@ -16,6 +16,8 @@
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:e2e": "playwright test",
+    "guide:pdf": "playwright test --config scripts/user-guide-pdf/playwright.config.ts",
+    "handoff:pdf": "playwright test --config scripts/handoff-pdf/playwright.config.ts",
     "db:generate": "prisma generate",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",

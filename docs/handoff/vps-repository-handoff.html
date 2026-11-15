@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Halcom Dashboard: Serah Terima VPS dan Repository</title>
+<!--
+  Sumber PDF serah terima (D-088). Cetak ulang setelah diubah:
+    docker compose --profile test run --rm --no-deps e2e npm run handoff:pdf
+  Berkas ini dan PDF-nya TIDAK BOLEH berisi kredensial. Isi tanda [ISI ... DISINI] pada salinan di luar repository
+  (password manager atau dokumen terenkripsi), jangan di berkas ini.
+-->
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: #1f2937; font-size: 10pt; line-height: 1.45; margin: 0; }
+  h1, h2, h3 { color: #0b4f80; margin: 0; }
+  h1 { font-size: 24pt; }
+  h2 { font-size: 16pt; border-bottom: 2px solid #1173ba; padding-bottom: 4pt; margin: 0 0 8pt; }
+  h3 { font-size: 11.5pt; margin: 12pt 0 4pt; }
+  p { margin: 4pt 0; }
+  ul, ol { margin: 3pt 0 3pt 16pt; padding: 0; }
+  li { margin: 1.5pt 0; }
+  code, pre { font-family: Consolas, "Courier New", monospace; font-size: 8.8pt; }
+  code { color: #0b4f80; }
+  pre { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4pt; padding: 6pt 8pt; white-space: pre-wrap; word-break: break-all; margin: 4pt 0; break-inside: avoid; }
+  table { width: 100%; border-collapse: collapse; margin: 4pt 0 8pt; font-size: 9pt; }
+  th, td { border: 1px solid #d1d5db; padding: 3.5pt 5pt; text-align: left; vertical-align: top; }
+  thead th { background: #eef6fc; color: #0b4f80; }
+  tr { break-inside: avoid; }
+  .muted { color: #6b7280; }
+  .fill { background: #fef3c7; color: #92400e; font-weight: 600; padding: 0 2pt; border-radius: 2pt; }
+  .check { background: #e0f2fe; color: #075985; font-weight: 600; padding: 0 2pt; border-radius: 2pt; }
+  .warn { border: 1px solid #f59e0b; background: #fffbeb; border-radius: 5pt; padding: 6pt 9pt; margin: 6pt 0; break-inside: avoid; }
+  .danger { border: 1px solid #dc2626; background: #fef2f2; border-radius: 5pt; padding: 6pt 9pt; margin: 6pt 0; break-inside: avoid; }
+  section.part { break-before: page; }
+  .cover { display: flex; flex-direction: column; gap: 12pt; }
+  .eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: 8.5pt; color: #6b7280; margin: 0; }
+  .boxes td:first-child { width: 34%; font-weight: 600; }
+  .checklist li { list-style: none; margin-left: -14pt; }
+  .checklist li::before { content: "☐  "; color: #0b4f80; }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div>
+    <p class="eyebrow">Halcom Dashboard</p>
+    <h1>Serah Terima VPS dan Repository</h1>
+    <p class="muted">Untuk tim IT atau developer yang mengambil alih server produksi dan kode aplikasi.</p>
+  </div>
+  <table class="boxes">
+    <tr><td>Diserahkan oleh</td><td><span class="fill">[ISI NAMA PENYERAH DISINI]</span></td></tr>
+    <tr><td>Diterima oleh</td><td><span class="fill">[ISI NAMA PENERIMA DISINI]</span></td></tr>
+    <tr><td>Tanggal serah terima</td><td><span class="fill">[ISI TANGGAL DISINI]</span></td></tr>
+    <tr><td>Versi yang berjalan saat serah terima</td><td><span class="fill">[ISI HASIL cat /opt/halcom/.last_good_tag DISINI]</span></td></tr>
+  </table>
+  <div class="danger">
+    <strong>Dokumen ini sengaja tidak memuat kredensial.</strong> Setiap tanda <span class="fill">[ISI ... DISINI]</span> diisi pada salinan
+    di luar repository (password manager perusahaan atau dokumen terenkripsi), lalu diserahkan langsung ke penerima. Jangan menulis
+    kata sandi, token, atau kunci privat ke repository, chat, atau email biasa. Tanda <span class="check">[CEK ...]</span> berarti
+    nilainya perlu dipastikan langsung di server atau di GitHub.
+  </div>
+  <div>
+    <h3>Isi</h3>
+    <ol>
+      <li>Ringkasan sistem</li>
+      <li>Akses dan kredensial (yang harus diserahkan)</li>
+      <li>Repository dan alur rilis</li>
+      <li>VPS: susunan dan layanan</li>
+      <li>Operasional harian: deploy, rollback, log, backup, restore</li>
+      <li>Tugas terjadwal (cron)</li>
+      <li>Pengembangan di komputer lokal</li>
+      <li>Checklist serah terima</li>
+      <li>Hal yang belum selesai dan risiko yang diketahui</li>
+    </ol>
+  </div>
+</section>
+
+<section class="part">
+  <h2>1. Ringkasan sistem</h2>
+  <p>Halcom Dashboard adalah aplikasi web internal untuk proyek, request BOQ / RFQ / PO, dan pemantauan SLA: Sales → SOA (BOQ) →
+  Purchasing (RFQ dan PO), dengan akses baca untuk Finance dan Management.</p>
+  <table class="boxes">
+    <tr><td>Alamat produksi</td><td><code>https://halcom-dashboard.site</code> (<code>www.</code> dialihkan ke alamat tanpa www)</td></tr>
+    <tr><td>Server</td><td>Satu Hostinger KVM VPS, Ubuntu 26.04 LTS (x86_64). Paket: <span class="check">[CEK PAKET VPS DI hPanel]</span></td></tr>
+    <tr><td>Container</td><td><code>db</code> (PostgreSQL 18.6), <code>migrate</code> (menjalankan migrasi sekali tiap deploy), <code>app</code> (Next.js, Node.js 24), <code>caddy</code> (HTTPS otomatis)</td></tr>
+    <tr><td>Database utama</td><td>PostgreSQL di container <code>db</code> pada VPS, volume <code>halcom-dashboard_postgres_data</code></td></tr>
+    <tr><td>Salinan cadangan</td><td>Dump harian di volume <code>/backups</code> (VPS) dan salinan malam ke database Neon (layanan PostgreSQL terkelola)</td></tr>
+    <tr><td>Kode</td><td>GitHub, organisasi <code>halcom-solutions</code>, repository <code>halcom-dashboard</code> <span class="check">[CEK: repo pernah dipindah dari akun pribadi; GitHub mengalihkan alamat lama]</span></td></tr>
+    <tr><td>Deploy</td><td>GitHub Actions <em>Deploy to Hostinger</em>, otomatis saat ada push ke <code>main</code>, menunggu persetujuan reviewer</td></tr>
+  </table>
+  <h3>Alur sebuah rilis</h3>
+  <ol>
+    <li>Developer membuat branch dari <code>development</code>, lalu pull request ke <code>development</code>. CI menjalankan lint, typecheck, tes unit, tes integrasi, dan build.</li>
+    <li>Saat siap rilis, <code>development</code> di-merge ke <code>main</code>.</li>
+    <li>Workflow deploy berjalan dan menunggu persetujuan di environment <code>production</code>.</li>
+    <li>Setelah disetujui: kode dikirim ke VPS lewat SSH, image dibangun di VPS, database di-dump, migrasi dijalankan, <code>app</code> dimulai ulang, lalu <code>/api/health</code> dicek. Bila tidak sehat, image lama dipasang lagi (migrasi tidak dibatalkan).</li>
+  </ol>
+</section>
+
+<section class="part">
+  <h2>2. Akses dan kredensial</h2>
+  <p>Semua akses di bawah harus berpindah ke penerima. Setelah serah terima, ganti kata sandi dan kunci yang pernah diketahui penyerah (lihat bagian 8).</p>
+
+  <h3>Hostinger dan domain</h3>
+  <table>
+    <thead><tr><th>Akses</th><th>Nilai</th><th>Catatan</th></tr></thead>
+    <tbody>
+      <tr><td>Akun Hostinger (hPanel)</td><td><span class="fill">[ISI EMAIL LOGIN HOSTINGER DISINI]</span> / <span class="fill">[ISI PASSWORD DISINI]</span></td><td>Aktifkan 2FA. Pemilik tagihan: <span class="fill">[ISI PEMILIK AKUN DISINI]</span></td></tr>
+      <tr><td>Masa aktif VPS</td><td><span class="fill">[ISI TANGGAL JATUH TEMPO DISINI]</span></td><td>Perpanjangan otomatis: <span class="check">[CEK DI hPanel]</span></td></tr>
+      <tr><td>Domain <code>halcom-dashboard.site</code></td><td>Registrar: <span class="fill">[ISI REGISTRAR DISINI]</span></td><td>Jatuh tempo: <span class="fill">[ISI TANGGAL DISINI]</span></td></tr>
+      <tr><td>DNS</td><td>A record domain → IP VPS; CNAME <code>www</code> → domain</td><td>Dikelola di: <span class="fill">[ISI TEMPAT DNS DIKELOLA DISINI]</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>VPS (SSH)</h3>
+  <table>
+    <thead><tr><th>Akses</th><th>Nilai</th><th>Catatan</th></tr></thead>
+    <tbody>
+      <tr><td>Alamat IP VPS</td><td><span class="fill">[ISI IP VPS DISINI]</span></td><td>Port SSH: <span class="fill">[ISI PORT SSH DISINI]</span> (bawaan 22)</td></tr>
+      <tr><td>User admin (root atau sudo)</td><td><span class="fill">[ISI USER ADMIN DISINI]</span> / <span class="fill">[ISI PASSWORD ATAU KUNCI SSH DISINI]</span></td><td>Disarankan login dengan kunci SSH, login kata sandi dimatikan</td></tr>
+      <tr><td>User <code>deploy</code></td><td>Kunci SSH pribadi penerima: <span class="fill">[TAMBAHKAN KUNCI PUBLIK PENERIMA DI /home/deploy/.ssh/authorized_keys]</span></td><td>Anggota grup <code>docker</code>; pemilik <code>/opt/halcom</code></td></tr>
+      <tr><td>Kunci CI (GitHub Actions)</td><td>Kunci publiknya ada di <code>/home/deploy/.ssh/authorized_keys</code> dengan komentar <code>github-actions-deploy</code></td><td>Kunci privatnya hanya ada di secret GitHub <code>VPS_SSH_KEY</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Berkas rahasia di VPS</h3>
+  <p><code>/opt/halcom/.env</code> (izin 600, pemilik <code>deploy</code>), dibaca Docker Compose:</p>
+  <table>
+    <thead><tr><th>Variabel</th><th>Nilai</th><th>Keterangan</th></tr></thead>
+    <tbody>
+      <tr><td><code>DOMAIN</code></td><td><code>halcom-dashboard.site</code></td><td>Tanpa <code>https://</code></td></tr>
+      <tr><td><code>POSTGRES_USER</code></td><td><span class="fill">[ISI DISINI]</span></td><td>Bawaan dokumentasi: <code>halcom</code></td></tr>
+      <tr><td><code>POSTGRES_PASSWORD</code></td><td><span class="fill">[ISI PASSWORD DATABASE DISINI]</span></td><td>Hanya karakter <code>A-Za-z0-9-_.~</code></td></tr>
+      <tr><td><code>POSTGRES_DB</code></td><td><span class="fill">[ISI DISINI]</span></td><td>Bawaan dokumentasi: <code>halcom</code></td></tr>
+      <tr><td><code>CRON_SECRET</code></td><td><span class="fill">[ISI CRON_SECRET DISINI]</span></td><td>Untuk peringatan SLA (minimal 16 karakter). Kosong = peringatan SLA mati</td></tr>
+      <tr><td><code>EMAIL_TO_*</code>, <code>EMAIL_CC_*</code></td><td><span class="fill">[ISI ALAMAT GRUP EMAIL DISINI]</span></td><td>Penerima di teks email BOQ, RFQ, PO (opsional; bisa juga diatur Superadmin di aplikasi)</td></tr>
+    </tbody>
+  </table>
+  <p><code>/opt/halcom/neon.env</code> (izin 600), dipakai <code>db-sync.sh</code>:</p>
+  <table>
+    <thead><tr><th>Variabel</th><th>Nilai</th></tr></thead>
+    <tbody>
+      <tr><td><code>NEON_URL</code></td><td><span class="fill">[ISI CONNECTION STRING NEON DISINI]</span></td></tr>
+      <tr><td><code>NEON_BACKUP_URL</code></td><td><span class="fill">[ISI CONNECTION STRING NEON CADANGAN DISINI]</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>GitHub</h3>
+  <table>
+    <thead><tr><th>Akses</th><th>Nilai</th><th>Catatan</th></tr></thead>
+    <tbody>
+      <tr><td>Owner organisasi <code>halcom-solutions</code></td><td><span class="fill">[ISI AKUN GITHUB OWNER DISINI]</span></td><td>Tambahkan penerima sebagai owner atau admin repo</td></tr>
+      <tr><td>Reviewer environment <code>production</code></td><td><span class="fill">[ISI AKUN REVIEWER DISINI]</span></td><td>Settings → Environments → production → Required reviewers</td></tr>
+      <tr><td>Secret environment <code>production</code></td><td><code>VPS_HOST</code>, <code>VPS_USER</code> (<code>deploy</code>), <code>VPS_PORT</code>, <code>VPS_SSH_KEY</code>, <code>VPS_KNOWN_HOSTS</code></td><td>Nilai tidak bisa dibaca kembali dari GitHub; buat ulang bila perlu (bagian 8)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Layanan lain</h3>
+  <table>
+    <thead><tr><th>Akses</th><th>Nilai</th><th>Catatan</th></tr></thead>
+    <tbody>
+      <tr><td>Akun Neon</td><td><span class="fill">[ISI EMAIL LOGIN NEON DISINI]</span> / <span class="fill">[ISI PASSWORD DISINI]</span></td><td>Proyek: <span class="fill">[ISI NAMA PROYEK NEON DISINI]</span></td></tr>
+      <tr><td>Akun Superadmin aplikasi</td><td><span class="fill">[ISI EMAIL SUPERADMIN DISINI]</span> / <span class="fill">[ISI PASSWORD DISINI]</span></td><td>Bisa mengelola semua akun, permission, SLA, backup</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="part">
+  <h2>3. Repository dan alur rilis</h2>
+  <table class="boxes">
+    <tr><td>Alamat</td><td><code>https://github.com/halcom-solutions/halcom-dashboard</code> <span class="check">[CEK]</span></td></tr>
+    <tr><td><code>main</code></td><td>Produksi. Setiap push atau merge ke sini memicu deploy (setelah disetujui).</td></tr>
+    <tr><td><code>development</code></td><td>Branch kerja utama. Fitur baru masuk ke sini lewat pull request.</td></tr>
+    <tr><td>CI (<code>.github/workflows/ci.yml</code>)</td><td>Untuk setiap pull request dan push ke <code>main</code> / <code>development</code>: lint (0 peringatan), typecheck, tes unit, tes integrasi (PostgreSQL 18), build produksi. Tidak men-deploy.</td></tr>
+    <tr><td>Deploy (<code>.github/workflows/deploy-hostinger.yml</code>)</td><td>Push ke <code>main</code>, atau manual (Actions → Deploy to Hostinger → Run workflow, isi <code>ref</code>).</td></tr>
+  </table>
+
+  <h3>Dokumen penting di repository</h3>
+  <table>
+    <thead><tr><th>Berkas</th><th>Isi</th></tr></thead>
+    <tbody>
+      <tr><td><code>README.md</code></td><td>Stack, cara menjalankan lokal, perintah database dan tes</td></tr>
+      <tr><td><code>AGENTS.md</code></td><td>Aturan kerja engineering</td></tr>
+      <tr><td><code>docs/decisions/DECISIONS.md</code></td><td>Semua keputusan desain, bernomor (D-001 dan seterusnya). Baca sebelum mengubah perilaku.</td></tr>
+      <tr><td><code>deploy/HOSTINGER-DOCKER-MANAGER.md</code></td><td>Runbook VPS yang berlaku: deploy, backup harian, peringatan SLA, sinkron Neon</td></tr>
+      <tr><td><code>deployment/SECURITY_CHECKLIST.md</code></td><td>Checklist keamanan produksi</td></tr>
+      <tr><td><code>docs/user-guide/</code></td><td>PDF User Guide untuk pengguna</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Struktur kode</h3>
+  <ul>
+    <li><code>src/domain</code>: aturan murni (izin, status request, SLA, metrik). <code>src/server</code>: use case dan query database. <code>src/features</code> dan <code>src/app</code>: tampilan (Next.js App Router).</li>
+    <li><code>prisma/schema.prisma</code> dan <code>prisma/migrations</code>: skema database. Migrasi hanya ditambah, tidak pernah diubah setelah masuk <code>main</code>.</li>
+    <li><code>deploy/</code>: semua berkas untuk VPS (compose, Caddyfile, skrip deploy, backup, SLA, sinkron Neon).</li>
+    <li><code>tests/unit</code>, <code>tests/integration</code>, <code>tests/e2e</code>: Vitest dan Playwright.</li>
+  </ul>
+
+  <div class="warn">
+    <strong>Jangan pernah di-commit:</strong> <code>.env</code> apa pun, folder <code>prisma/data/</code> (data customer asli dari ekspor sales dan tracker RFQ),
+    folder <code>backups/</code>, dan <code>DEV_ACCOUNTS.md</code>. Ketiganya sudah ada di <code>.gitignore</code>.
+  </div>
+</section>
+
+<section class="part">
+  <h2>4. VPS: susunan dan layanan</h2>
+  <h3>Folder <code>/opt/halcom</code> (milik user <code>deploy</code>)</h3>
+  <table>
+    <thead><tr><th>Berkas / folder</th><th>Isi</th></tr></thead>
+    <tbody>
+      <tr><td><code>.env</code>, <code>neon.env</code></td><td>Rahasia (bagian 2). Izin 600.</td></tr>
+      <tr><td><code>compose.hostinger.yaml</code>, <code>Caddyfile</code></td><td>Definisi stack dan konfigurasi HTTPS. Disalin ulang oleh setiap deploy.</td></tr>
+      <tr><td><code>deploy-vps.sh</code>, <code>backup-daily.sh</code>, <code>sla-scan.sh</code>, <code>db-sync.sh</code></td><td>Skrip, disalin ulang oleh setiap deploy.</td></tr>
+      <tr><td><code>src/</code></td><td>Salinan kode commit yang terakhir di-deploy (untuk membangun image).</td></tr>
+      <tr><td><code>predeploy/</code></td><td>Dump database sebelum tiap migrasi; 10 terbaru disimpan.</td></tr>
+      <tr><td><code>sync/</code></td><td>Dump dan log sinkron Neon; 7 terbaru disimpan.</td></tr>
+      <tr><td><code>.last_good_tag</code></td><td>Commit (12 karakter) yang sedang berjalan.</td></tr>
+      <tr><td><code>CUTOVER_DONE</code></td><td>Penanda bahwa VPS sudah menjadi database utama (arah sinkron: VPS → Neon).</td></tr>
+      <tr><td><code>backup.log</code>, <code>sla-scan.log</code></td><td>Log tugas terjadwal.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Stack Docker (nama proyek <code>halcom-dashboard</code>)</h3>
+  <table>
+    <thead><tr><th>Service</th><th>Image</th><th>Keterangan</th></tr></thead>
+    <tbody>
+      <tr><td><code>db</code></td><td><code>postgres:18.6-bookworm</code> (dipin per digest)</td><td>Volume <code>postgres_data</code>. Tidak membuka port ke luar.</td></tr>
+      <tr><td><code>migrate</code></td><td><code>halcom-dashboard-migrate:hostinger</code></td><td>Jalan sekali sebelum <code>app</code>: <code>prisma migrate deploy</code>.</td></tr>
+      <tr><td><code>app</code></td><td><code>halcom-dashboard-app:hostinger</code></td><td>Volume <code>backups</code> di <code>/backups</code>. Health: <code>/api/health</code>.</td></tr>
+      <tr><td><code>caddy</code></td><td><code>caddy:2</code></td><td>Port 80 dan 443. Sertifikat HTTPS otomatis, header keamanan, alih <code>www</code>.</td></tr>
+    </tbody>
+  </table>
+  <p>Image dibangun di VPS oleh <code>deploy-vps.sh</code>. Image sebelumnya disimpan dengan tag <code>:previous</code> untuk rollback.</p>
+
+  <h3>Jaringan dan keamanan</h3>
+  <ul>
+    <li>Firewall hanya membuka 22 (SSH), 80, dan 443. Cek: <code>ufw status</code>. <span class="check">[CEK]</span></li>
+    <li>Kunci host SSH VPS dipin di secret <code>VPS_KNOWN_HOSTS</code>. Bila VPS dibangun ulang, secret ini wajib diperbarui.</li>
+    <li>Aplikasi membatasi percobaan login (5 per email, 25 per alamat IP dalam 15 menit).</li>
+  </ul>
+</section>
+
+<section class="part">
+  <h2>5. Operasional harian</h2>
+  <p>Semua perintah dijalankan di VPS sebagai user <code>deploy</code>. Singkatan yang dipakai:</p>
+  <pre>cd /opt/halcom
+C="docker compose -p halcom-dashboard -f compose.hostinger.yaml"</pre>
+
+  <h3>Cek kondisi</h3>
+  <pre>$C ps
+$C logs --tail 100 app
+$C logs --tail 50 caddy
+cat /opt/halcom/.last_good_tag</pre>
+
+  <h3>Deploy versi baru</h3>
+  <ol>
+    <li>Merge ke <code>main</code> (atau Actions → Deploy to Hostinger → Run workflow dengan <code>ref</code> tertentu).</li>
+    <li>Reviewer menyetujui run di environment <code>production</code>.</li>
+    <li>Pantau log run di GitHub. Baris terakhir yang benar: <code>== Done: &lt;tag&gt; is live</code>.</li>
+  </ol>
+
+  <h3>Rollback</h3>
+  <ul>
+    <li><strong>Kode saja:</strong> jalankan workflow manual dengan <code>ref</code> berisi commit lama yang sehat.</li>
+    <li><strong>Migrasi bermasalah:</strong> migrasi tidak dibatalkan otomatis. Pulihkan dump dari <code>predeploy/</code> (lihat Restore), lalu deploy commit lama.</li>
+  </ul>
+
+  <h3>Backup manual</h3>
+  <pre>$C exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB"' &gt; manual-$(date -u +%Y%m%d-%H%M).dump</pre>
+  <p>Superadmin juga bisa membuat dan mengunduh backup dari halaman <strong>Backups</strong> di aplikasi.</p>
+
+  <h3>Restore</h3>
+  <div class="warn">Restore menimpa seluruh database. Buat backup manual dulu, dan hentikan <code>app</code> selama proses.</div>
+  <pre>$C stop app
+cat BERKAS.dump | $C exec -T db sh -c 'pg_restore --clean --if-exists --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+$C up -d app</pre>
+
+  <h3>Mengubah isi <code>.env</code></h3>
+  <p>Container hanya membaca <code>.env</code> saat dibuat. Setelah mengubahnya: <code>$C up -d app</code>.</p>
+
+  <h3>Peringatan SLA</h3>
+  <p>Uji dengan <code>/opt/halcom/sla-scan.sh</code>. Hasil benar: <code>200</code> dan jumlah <code>checked</code>, <code>warnings</code>, <code>dangers</code>, <code>closed</code>. <code>404</code> berarti <code>CRON_SECRET</code> kosong; <code>401</code> berarti secret salah.</p>
+</section>
+
+<section class="part">
+  <h2>6. Tugas terjadwal (cron user <code>deploy</code>)</h2>
+  <p>Zona waktu server: UTC (WIB = UTC + 7). Isi yang berlaku saat ini: <span class="check">[CEK DENGAN crontab -l DAN SALIN DISINI]</span></p>
+  <table>
+    <thead><tr><th>Tugas</th><th>Baris cron (yang didokumentasikan)</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td>Backup harian</td><td><code>30 20 * * * /opt/halcom/backup-daily.sh &gt;&gt; /opt/halcom/backup.log 2&gt;&amp;1</code></td><td>Dump ke volume <code>/backups</code> pukul 03:30 WIB. Simpan 30 hari, minimal 3 berkas terbaru.</td></tr>
+      <tr><td>Peringatan SLA</td><td><code>*/30 1-11 * * 1-5 /opt/halcom/sla-scan.sh &gt;&gt; /opt/halcom/sla-scan.log 2&gt;&amp;1</code></td><td>Tiap 30 menit, 08:00 sampai 18:00 WIB, Senin sampai Jumat.</td></tr>
+      <tr><td>Salinan ke Neon</td><td><code>30 2 * * * /opt/halcom/db-sync.sh vps-to-neon &gt;&gt; /opt/halcom/sync/cron.log 2&gt;&amp;1</code></td><td>Menimpa database Neon cadangan dengan isi VPS. Hanya berjalan bila <code>CUTOVER_DONE</code> ada.</td></tr>
+    </tbody>
+  </table>
+  <div class="warn">
+    Jangan pernah menjalankan <code>db-sync.sh neon-to-vps</code> atau <code>cutover</code> lagi: keduanya menimpa database VPS dengan isi Neon.
+    Skrip menolak keduanya selama <code>CUTOVER_DONE</code> ada; jangan menghapus berkas itu.
+  </div>
+  <p>Cek rutin: berkas <code>halcom-auto-*</code> terbaru di halaman Backups berumur kurang dari 26 jam, dan <code>sync/cron.log</code> tidak berisi error.</p>
+</section>
+
+<section class="part">
+  <h2>7. Pengembangan di komputer lokal</h2>
+  <p>Semua berjalan di Docker; Node.js dan PostgreSQL tidak perlu dipasang di komputer. Detail lengkap ada di <code>README.md</code>.</p>
+  <pre>git clone https://github.com/halcom-solutions/halcom-dashboard.git
+cd halcom-dashboard
+cp .env.example .env          # isi POSTGRES_PASSWORD dan SEED_USER_PASSWORD
+docker compose up -d          # aplikasi di http://localhost:3000
+docker compose run --rm app npm run db:migrate:deploy
+docker compose run --rm app npm run db:seed</pre>
+  <h3>Pemeriksaan sebelum pull request (sama dengan CI)</h3>
+  <pre>docker compose run --rm app npm run lint
+docker compose run --rm app npm run typecheck
+docker compose run --rm app npm test
+docker compose --profile test run --rm app-test npm run test:integration
+docker compose --profile test run --rm e2e</pre>
+  <p class="muted">Database dev memakai port 55432 di host karena 5432 sering dipakai PostgreSQL lokal. Jangan pernah menjalankan <code>docker compose down -v</code>: perintah itu menghapus volume database.</p>
+</section>
+
+<section class="part">
+  <h2>8. Checklist serah terima</h2>
+  <h3>Akses</h3>
+  <ul class="checklist">
+    <li>Penerima bisa login ke hPanel Hostinger dengan 2FA aktif.</li>
+    <li>Penerima menjadi owner atau admin repository di organisasi <code>halcom-solutions</code>, dan reviewer environment <code>production</code>.</li>
+    <li>Kunci SSH publik penerima ditambahkan ke <code>/home/deploy/.ssh/authorized_keys</code> dan ke user admin; login berhasil.</li>
+    <li>Penerima bisa login ke Neon dan ke aplikasi sebagai Superadmin.</li>
+    <li>Akses registrar dan DNS domain sudah dipindahkan atau dibagikan.</li>
+  </ul>
+  <h3>Rotasi kredensial (setelah akses penerima berfungsi)</h3>
+  <ul class="checklist">
+    <li>Ganti kata sandi hPanel, Neon, dan akun Superadmin aplikasi.</li>
+    <li>Hapus kunci SSH penyerah dari <code>authorized_keys</code> (user <code>deploy</code> dan admin).</li>
+    <li>Buat kunci CI baru (<code>ssh-keygen -t ed25519 -f halcom_ci -N "" -C "github-actions-deploy"</code>), ganti baris lama di <code>authorized_keys</code>, perbarui secret <code>VPS_SSH_KEY</code>, lalu hapus berkas kunci dari komputer.</li>
+    <li>Ganti <code>CRON_SECRET</code> di <code>.env</code> (<code>openssl rand -hex 24</code>), lalu <code>$C up -d app</code> dan uji <code>sla-scan.sh</code>.</li>
+    <li>Ganti kata sandi database Neon dan perbarui <code>neon.env</code>.</li>
+    <li>Cabut token GitHub pribadi penyerah yang pernah dipakai untuk repository ini, dan keluarkan penyerah dari organisasi bila sudah tidak terlibat.</li>
+    <li>Kata sandi PostgreSQL di VPS (<code>POSTGRES_PASSWORD</code>) hanya berlaku saat volume pertama kali dibuat. Mengganti nilainya di <code>.env</code> saja tidak mengubah database; ubah juga dengan <code>ALTER USER</code> di dalam container <code>db</code> sebelum memperbarui <code>.env</code>. <span class="check">[OPSIONAL]</span></li>
+  </ul>
+  <h3>Uji fungsi setelah rotasi</h3>
+  <ul class="checklist">
+    <li>Deploy manual satu kali dari <code>main</code> berhasil sampai <code>== Done</code>.</li>
+    <li><code>/opt/halcom/backup-daily.sh</code> berhasil dan berkasnya tampil di halaman Backups.</li>
+    <li><code>/opt/halcom/sla-scan.sh</code> mengembalikan <code>200</code>.</li>
+    <li><code>/opt/halcom/db-sync.sh vps-to-neon</code> berhasil.</li>
+  </ul>
+</section>
+
+<section class="part">
+  <h2>9. Hal yang belum selesai dan risiko yang diketahui</h2>
+  <ul>
+    <li><strong>Backup harian ada di server yang sama</strong> dengan database. Salinan di luar server hanya Neon dan unduhan manual. Disarankan mengunduh backup berkala ke penyimpanan terenkripsi.</li>
+    <li><strong>Rollback tidak membatalkan migrasi.</strong> Pemulihan migrasi bermasalah memakai dump <code>predeploy/</code>.</li>
+    <li><strong>Image produksi tidak memuat skrip</strong> seperti <code>db:bootstrap-superadmin</code>. Database baru harus diisi dari dump.</li>
+    <li><strong>Belum ada Content Security Policy</strong> (butuh pengaturan nonce di Next.js), lihat <code>deployment/SECURITY_CHECKLIST.md</code>.</li>
+    <li><strong>Satu environment saja</strong> (tanpa staging). Uji di lokal sebelum merge ke <code>main</code>.</li>
+    <li>Pertanyaan bisnis yang masih terbuka tercatat di <code>docs/requirements/OPEN_QUESTIONS.md</code>.</li>
+  </ul>
+  <h3>Kontak</h3>
+  <table class="boxes">
+    <tr><td>Pemilik produk</td><td><span class="fill">[ISI NAMA DAN KONTAK DISINI]</span></td></tr>
+    <tr><td>Developer sebelumnya</td><td><span class="fill">[ISI NAMA DAN KONTAK DISINI]</span></td></tr>
+    <tr><td>Kontak support Hostinger</td><td><span class="fill">[ISI DISINI]</span></td></tr>
+  </table>
+  <h3>Tanda tangan</h3>
+  <table class="boxes">
+    <tr><td>Penyerah</td><td style="height: 40pt;"><span class="fill">[ISI NAMA DAN TANDA TANGAN DISINI]</span></td></tr>
+    <tr><td>Penerima</td><td style="height: 40pt;"><span class="fill">[ISI NAMA DAN TANDA TANGAN DISINI]</span></td></tr>
+  </table>
+</section>
+
+</body>
+</html>

@@ -1044,3 +1044,29 @@ The preview of each template (filled with sample data) is no longer a long block
 - **Same words as the alerts.** The overdue and close-to-deadline concerns are the states that raise the Danger and Warning notifications (D-083), so Management sees on this page what the team was told.
 - **Removed:** `ROLE_DASHBOARDS` and `RoleQueue` (the placeholder and the plain list). No migration.
 - **Not built (asked for in the plan):** a weekly SLA compliance line (the six months table is the trend for now), Sales target attainment and pipeline conversion on this page (they stay on Sales pipeline and Targets), and thresholds that a superadmin can change.
+
+## D-086: "Updated By" on the Projects table, and the User Guide as one PDF with a part per role (2026-11-15)
+
+**Asked by the owner.**
+
+- **Updated By.** A column after "Last updated" (`PROJECT_COLUMNS` key `updatedBy`, also on the phone cards): the person behind the project's last activity. The project row stores no editor, so it is the newest of the records that name one: the project's latest audit event (creation, rename, commercial and technical edits, imports), the latest update feed entry ("Import" when it has no author), the latest field change, and the latest status change or PIC handover of each of its requests. Every project write records one of these in the same transaction, so it names the event "Last updated" shows. Not sortable (computed, like Principals). One extra query per page (`latestProjectAudit`). A Superadmin who saved a column choice before this change does not see the new column until it is ticked on the Projects page; with no saved choice every column shows.
+- **User Guide PDF.** `docs/user-guide/halcom-user-guide.pdf`: a cover (contents and the workflow per role), then one part per role (Sales, SOA, Purchasing, Finance, Management, Admin, Superadmin), each starting on a new page with what the role reads, edits and cannot do, and every step with where, prerequisites, steps, editable fields, handoff and the pages it may open; then the request statuses. It is built from the same definitions as `/guide` (`src/features/guide/print-html.ts`), so it is reprinted after a change to the guide: `docker compose --profile test run --rm --no-deps e2e npm run guide:pdf` (Chromium of the Playwright image; `app-test` must be running because the `e2e` service shares its network). It describes the default permissions, as the page does.
+- **Difference from the page:** the page shows the detailed steps of Admin and Superadmin only to those roles; the PDF holds every role's part, so it should be handed out with that in mind (or printed per role on request).
+
+## D-087: The User Guide PDF comes in three editions, each opening with a RACI matrix (2026-11-15)
+
+**Asked by the owner,** because the PDF is handed to everyone. Replaces the single PDF of D-086.
+
+- **Editions** (`USER_GUIDE_EDITIONS` in `src/features/guide/print-html.ts`), each its own file in `docs/user-guide/`:
+  - `halcom-user-guide.pdf`, for everyone: Sales, SOA, Purchasing, Management;
+  - `halcom-user-guide-finance.pdf`: Finance;
+  - `halcom-user-guide-admin.pdf`: Admin and Superadmin (the cover says not to pass it on), so the administration steps stay with those roles, as on `/guide`.
+- **RACI matrix first.** Right after the cover of every edition, on its own page: fifteen activities of the workflow against the seven roles, with R, A, C, I (and A/R when one role does the work and answers for it). It is defined once in `src/domain/guide/raci.ts` from the default permissions and notifications; a unit test keeps exactly one accountable role per activity. The matrix names activities only, so every edition shows all roles.
+- The cover's workflow table still lists the step titles of every role; the detailed steps are only in the edition of that role. Print all three with `docker compose --profile test run --rm --no-deps e2e npm run guide:pdf`.
+
+## D-088: A handoff PDF for the VPS and the repository, without credentials (2026-11-15)
+
+**Asked by the owner.** `docs/handoff/halcom-handoff-vps-repository.pdf`, printed from `docs/handoff/vps-repository-handoff.html` (`docker compose --profile test run --rm --no-deps e2e npm run handoff:pdf`). For the IT person or developer who takes over: the system at a glance, every access to hand over (Hostinger, domain and DNS, SSH, `/opt/halcom/.env` and `neon.env`, GitHub organization, environment secrets, Neon, the Superadmin account), the repository and release flow, the VPS layout and stack, daily operations (status, deploy, rollback, backup, restore, `.env` changes, SLA scan), the cron jobs, local development, a handoff checklist with the credential rotation, and the known gaps.
+
+- **No credentials in it.** Every secret is a placeholder `[ISI ... DISINI]`, to be filled in a copy kept outside the repository (a password manager); values that only the server or GitHub can confirm are marked `[CEK ...]`. The print script refuses to print if the source contains something that looks like a private key, a connection string with a password, or a GitHub token.
+- Facts come from `deploy/`, the two workflows, `compose.hostinger.yaml`, the decisions (D-065, D-078 to D-080, D-083) and the code (sign-in throttle). The cron lines are the documented ones; the live crontab is to be copied in during the handoff.

@@ -42,7 +42,8 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  sessions          Session[]
+  sessions          Session[] @relation("SessionUser")
+  impersonations    Session[] @relation("SessionImpersonator")
   deviceCredentials DeviceCredential[]
   audits            AuditEvent[]
   ownedProjects     Project[]              @relation("ProjectSalesOwner")
@@ -90,8 +91,11 @@ model Session {
   userId    String   @map("user_id") @db.Uuid
   expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  // Set when a superadmin opened this session to see the application as the user above (read only, one hour, never renewed).
+  impersonatorId String? @map("impersonator_id") @db.Uuid
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User  @relation("SessionUser", fields: [userId], references: [id], onDelete: Cascade)
+  impersonator User? @relation("SessionImpersonator", fields: [impersonatorId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])

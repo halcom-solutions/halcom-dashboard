@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { connection } from "next/server";
 import { canHold, type Permission } from "@/domain/access/permissions";
 import { getDb } from "@/lib/db";
@@ -31,6 +32,11 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
 export async function requireUser(options: { allowPasswordChange?: boolean } = {}): Promise<SessionUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (user.impersonatedBy) {
+    // A superadmin viewing as this account only looks: every server action (a change) is refused, and the first-sign-in gate does not apply.
+    if ((await headers()).has("next-action")) throw new Error("Anda sedang melihat sebagai akun lain: perubahan tidak disimpan. Keluar dari mode ini lebih dulu.");
+    return user;
+  }
   if (user.mustChangePassword && options.allowPasswordChange !== true) redirect(PASSWORD_CHANGE_PATH);
   return user;
 }

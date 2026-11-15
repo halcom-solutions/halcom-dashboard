@@ -144,7 +144,7 @@ test.describe("user management", () => {
     const otherPage = await other.newPage();
     await signInAs(otherPage, email, password);
     await expect(otherPage).toHaveURL(/\/password-change$/);
-    await expect(otherPage.getByRole("heading", { name: "Choose your own password" })).toBeVisible();
+    await expect(otherPage.getByRole("heading", { name: "Ganti kata sandi bawaan Anda" })).toBeVisible();
     // Nothing else opens while the handed-over password is still in use.
     await otherPage.goto("/dashboard/purchasing");
     await expect(otherPage).toHaveURL(/\/password-change$/);

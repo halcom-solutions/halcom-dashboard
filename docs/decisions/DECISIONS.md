@@ -1045,7 +1045,35 @@ The preview of each template (filled with sample data) is no longer a long block
 - **Removed:** `ROLE_DASHBOARDS` and `RoleQueue` (the placeholder and the plain list). No migration.
 - **Not built (asked for in the plan):** a weekly SLA compliance line (the six months table is the trend for now), Sales target attainment and pipeline conversion on this page (they stay on Sales pipeline and Targets), and thresholds that a superadmin can change.
 
-## D-086: "Updated By" on the Projects table, and the User Guide as one PDF with a part per role (2026-11-15)
+## D-086: The domain and the VPS host name are both served (2026-11-09)
+
+**Why.** The domain `halcom-dashboard.site` was suspended at the registrar, and the application was unreachable until `DOMAIN` was changed by hand. `deploy/Caddyfile` now has one site block per address, sharing one snippet (headers, compression, proxy, log): `{$DOMAIN}` (main, also `APP_BASE_URL`) and `{$FALLBACK_DOMAIN}` (default `srv2127418.hstgr.cloud`, the host name Hostinger keeps for the VPS). Each gets its own certificate, so a failure on one address (suspension, DNS, a certificate error) does not touch the other. The `www` redirect is fixed to the company domain, since the VPS host name has no `www`.
+
+**Rules.** The two names must differ (Caddy refuses a duplicate address); `deploy-vps.sh` says so before it changes anything and also validates the file with `caddy:2`. A session cookie belongs to one host, so people sign in again when they switch. To make the VPS host name the main address for a while (links in the e-mail text), swap `DOMAIN` and `FALLBACK_DOMAIN` in `/opt/halcom/.env`.
+
+
+## D-083: A superadmin can view the application as another user, read only (2026-11-12)
+
+**Asked by the owner**, to check what a user sees without asking for their password.
+
+- **Who and whom.** Only a superadmin (`users.impersonate`, superadmin-only and locked like the other superadmin permissions). The target must be an active account that is not Admin or Superadmin, and not the superadmin's own. The button is "Lihat sebagai" in the user's Edit window.
+- **How.** The superadmin's session is closed and a session of the target is opened that names the superadmin (`sessions.impersonator_id`, migration `20261112100000_session_impersonator`). It lasts one hour and is never renewed. It dies with the target (deactivated, password reset) or with the superadmin (deactivated, deleted). "Keluar dari mode ini" in the banner ends it and opens a new normal session for the superadmin without asking for the password: the server knows who opened it.
+- **Read only.** `requireUser` refuses every server action made through such a session (the `next-action` header), so no form can change data as someone else. The first-sign-in password gate does not apply while viewing. Pages, lists and exports are read as the target sees them.
+- **Audit.** `user.impersonation_started` and `user.impersonation_ended`, with the superadmin as actor and the viewed user as the entity. Nothing else is written, since nothing can be changed.
+- **Not done:** viewing as an Admin or another Superadmin; a reason field when opening; making changes on behalf of someone.
+
+## D-089: Status can be changed from the request page, a superadmin can move a request to any status, and the board scrolls while dragging (2026-11-11)
+
+**Asked by the owner**, after the board proved hard to use on a small laptop screen.
+
+- **Status drop-down.** The request page (and each request on the project page) has a "Status" card for the people who work the type: choose the new status, then what the move needs (the PIC when an RFQ or PO is started; a reason for a cancellation, a revision, a late completion), then save. It is the same move as dragging the card and goes through the same server action (`moveRequestAction`), so every rule is checked again on the server. The page refreshes by itself.
+- **Superadmin override.** New permission `requests.override-status` (superadmin only, locked like the other superadmin permissions). A superadmin can move a request to any other offered status, on the board and in the drop-down: a Completed one to Cancelled, a Cancelled one reopened, anything to Revision. These moves are outside the flow, so a reason is always required, and they are written to the status history as usual and to the audit log as `request.status_overridden`. A move into Completed or Revision keeps or takes a completion date (a database check ties that date to those two statuses); a move out of them clears it, and the history keeps the earlier completion. The retired "Waiting for Sales" is never a target.
+- **Toasts have three levels:** success, warning and danger (`toast.success`, `toast.warning`, `toast.danger`, or `toast(message, kind)`; the old `toast(message, true|false)` still works). A form result can ask for the warning look with `level: "warning"`. The board now reports its moves as toasts (a failure also stays as an alert). A superadmin's override is reported as a warning so it is noticed.
+- **Drag scrolling.** While a card is dragged within 96 px of the top or bottom edge of the screen the page scrolls, faster nearer the edge; a column list that can scroll does the same near its own edge. Before, the page stayed still during a drag.
+- **Back.** A "Kembali" button below the status history goes to the previous page; when the page was opened on its own (nothing to go back to) it goes to the list of requests of that type.
+- **Not done:** undo of a status change, and a separate screen for a superadmin to review the overrides (they are in the audit log).
+
+## D-090: "Updated By" on the Projects table, and the User Guide as one PDF with a part per role (2026-11-15)
 
 **Asked by the owner.**
 
@@ -1053,9 +1081,9 @@ The preview of each template (filled with sample data) is no longer a long block
 - **User Guide PDF.** `docs/user-guide/halcom-user-guide.pdf`: a cover (contents and the workflow per role), then one part per role (Sales, SOA, Purchasing, Finance, Management, Admin, Superadmin), each starting on a new page with what the role reads, edits and cannot do, and every step with where, prerequisites, steps, editable fields, handoff and the pages it may open; then the request statuses. It is built from the same definitions as `/guide` (`src/features/guide/print-html.ts`), so it is reprinted after a change to the guide: `docker compose --profile test run --rm --no-deps e2e npm run guide:pdf` (Chromium of the Playwright image; `app-test` must be running because the `e2e` service shares its network). It describes the default permissions, as the page does.
 - **Difference from the page:** the page shows the detailed steps of Admin and Superadmin only to those roles; the PDF holds every role's part, so it should be handed out with that in mind (or printed per role on request).
 
-## D-087: The User Guide PDF comes in three editions, each opening with a RACI matrix (2026-11-15)
+## D-091: The User Guide PDF comes in three editions, each opening with a RACI matrix (2026-11-15)
 
-**Asked by the owner,** because the PDF is handed to everyone. Replaces the single PDF of D-086.
+**Asked by the owner,** because the PDF is handed to everyone. Replaces the single PDF of D-090.
 
 - **Editions** (`USER_GUIDE_EDITIONS` in `src/features/guide/print-html.ts`), each its own file in `docs/user-guide/`:
   - `halcom-user-guide.pdf`, for everyone: Sales, SOA, Purchasing, Management;
@@ -1064,7 +1092,7 @@ The preview of each template (filled with sample data) is no longer a long block
 - **RACI matrix first.** Right after the cover of every edition, on its own page: fifteen activities of the workflow against the seven roles, with R, A, C, I (and A/R when one role does the work and answers for it). It is defined once in `src/domain/guide/raci.ts` from the default permissions and notifications; a unit test keeps exactly one accountable role per activity. The matrix names activities only, so every edition shows all roles.
 - The cover's workflow table still lists the step titles of every role; the detailed steps are only in the edition of that role. Print all three with `docker compose --profile test run --rm --no-deps e2e npm run guide:pdf`.
 
-## D-088: A handoff PDF for the VPS and the repository, without credentials (2026-11-15)
+## D-092: A handoff PDF for the VPS and the repository, without credentials (2026-11-15)
 
 **Asked by the owner.** `docs/handoff/halcom-handoff-vps-repository.pdf`, printed from `docs/handoff/vps-repository-handoff.html` (`docker compose --profile test run --rm --no-deps e2e npm run handoff:pdf`). For the IT person or developer who takes over: the system at a glance, every access to hand over (Hostinger, domain and DNS, SSH, `/opt/halcom/.env` and `neon.env`, GitHub organization, environment secrets, Neon, the Superadmin account), the repository and release flow, the VPS layout and stack, daily operations (status, deploy, rollback, backup, restore, `.env` changes, SLA scan), the cron jobs, local development, a handoff checklist with the credential rotation, and the known gaps.
 

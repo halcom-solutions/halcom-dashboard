@@ -20,6 +20,10 @@ docker info >/dev/null 2>&1 || { echo "User $(id -un) cannot use Docker. As root
 for v in DOMAIN POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB; do
   grep -Eq "^${v}=.+" .env || { echo "/opt/halcom/.env has no value for ${v}." >&2; exit 1; }
 done
+domain="$(grep -E '^DOMAIN=' .env | tail -n 1 | cut -d= -f2- || true)"
+fallback="$(grep -E '^FALLBACK_DOMAIN=.+' .env | tail -n 1 | cut -d= -f2- || true)"
+fallback="${fallback:-srv2127418.hstgr.cloud}"
+[ "$domain" != "$fallback" ] || { echo "DOMAIN and FALLBACK_DOMAIN are both ${domain}: Caddy needs two different names. Swap one in /opt/halcom/.env (see deploy/Caddyfile)." >&2; exit 1; }
 [ -f Caddyfile ] || { echo "Missing /opt/halcom/Caddyfile (the workflow copies it)." >&2; exit 1; }
 # A bad Caddyfile would stop the proxy and take the site down, so it is checked with the same image before anything is replaced.
 docker run --rm --env-file .env -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null \

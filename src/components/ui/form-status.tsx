@@ -3,7 +3,8 @@
 import { useEffect } from "react";
 import { toast } from "./toast";
 
-export type FormState = { ok: boolean; message: string } | null;
+/** `level: "warning"` shows the result as a warning (amber) toast: a change that worked but is outside the usual flow, or is only partly done. Under the form it shows like `ok` says. */
+export type FormState = { ok: boolean; message: string; level?: "warning" } | null;
 
 /**
  * The result of a form. Every result shows as a toast. A failure also stays under the form as an alert, so the person can read
@@ -11,7 +12,7 @@ export type FormState = { ok: boolean; message: string } | null;
  */
 export function FormStatus({ state }: { state: FormState }) {
   useEffect(() => {
-    if (state) toast(state.message, state.ok, state);
+    if (state) toast(state.message, state.level === "warning" ? "warning" : state.ok ? "success" : "danger", state);
   }, [state]);
   if (!state || state.ok) return null;
   return (

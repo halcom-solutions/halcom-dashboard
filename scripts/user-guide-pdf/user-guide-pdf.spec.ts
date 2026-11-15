@@ -6,7 +6,7 @@ import { renderUserGuideHtml, USER_GUIDE_EDITIONS } from "@/features/guide/print
 
 const OUTPUT_DIR = resolve("docs/user-guide");
 
-// One PDF per edition (D-087): the general guide for everyone, one for Finance, one for Admin and Superadmin.
+// One PDF per edition (D-091): the general guide for everyone, one for Finance, one for Admin and Superadmin.
 for (const edition of USER_GUIDE_EDITIONS) {
   test(`print the ${edition.title}`, async ({ page }) => {
     const logo = `data:image/png;base64,${readFileSync(resolve("public/brand/halcom-logo.png")).toString("base64")}`;

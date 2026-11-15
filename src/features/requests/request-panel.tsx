@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { canContinueFlow, canSeeEmail, canWorkOn } from "@/domain/requests/access";
 import { formatSlaRange, slaOf } from "@/domain/requests/sla";
-import { allowedTransitions, canHandOver, nextRequestType, REQUEST_STATUS_LABELS } from "@/domain/requests/status";
+import { canHandOver, isOverrideMove, movesFor, nextRequestType, REQUEST_STATUS_LABELS } from "@/domain/requests/status";
 import { OWNING_TEAM_LABELS, SUBJECT_TAGS } from "@/domain/requests/types";
 import type { Role } from "@/domain/access/roles";
 import { formatDay } from "@/features/dashboards/format";
@@ -16,11 +16,13 @@ import { type RequestDetail } from "@/server/requests/queries";
 import { getTeamSetting } from "@/server/settings/team-settings";
 import { listAssignablePics, listPicAssignments } from "@/server/pics/service";
 import { picTeamOf, PIC_TEAM_LABELS } from "@/domain/pics/teams";
+import { BackButton } from "./back-button";
 import { DeleteRequest } from "./delete-request";
 import { EmailDialog } from "./email-dialog";
 import { Fact } from "./fact";
 import { jakartaDay } from "@/domain/requests/metrics";
 import { AssignPicForm, NextStepForm, RequestDatesForm, RevisionForm } from "./forms";
+import { StatusForm } from "./status-form";
 import { formatDateOnly } from "./format";
 import { SlaBadge } from "./sla-badge";
 import { StatusBadge, TypeBadge } from "./status-badges";
@@ -32,6 +34,8 @@ import { StatusBadge, TypeBadge } from "./status-badges";
  */
 export async function RequestPanel({ request, viewer, inProject = false, openEmail = false }: { request: RequestDetail; viewer: { id: string; role: Role }; inProject?: boolean; openEmail?: boolean }) {
   const mayWork = canWorkOn(viewer.role, request.type);
+  // Where this person can move the request: the flow, and for a superadmin any other status.
+  const moves = movesFor(request.status, request.type, can(viewer.role, "requests.override-status"));
   const next = nextRequestType(request.type);
   const ownsProject = salesActsOn(request.project, viewer.id);
   const decided = request.handovers.length > 0;
@@ -141,14 +145,34 @@ export async function RequestPanel({ request, viewer, inProject = false, openEma
         </CardContent>
       </Card>
 
-      {mayWork && allowedTransitions(request.status, request.type).length > 0 ? (
-        <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
-          Status saat ini {REQUEST_STATUS_LABELS[request.status]}. Diubah dengan menyeret kartu request ini di{" "}
-          <Link href={`/requests/${request.type.toLowerCase()}?view=board`} className="underline underline-offset-4">
-            {request.type} board
-          </Link>
-          . Pertanyaan ke Sales dan detail revisi disampaikan lewat email, agar riwayatnya tetap tercatat.
-        </p>
+      {mayWork && moves.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              <h3>Status</h3>
+            </CardTitle>
+            <CardDescription>
+              Status saat ini {REQUEST_STATUS_LABELS[request.status]}. Ubah di sini, atau seret kartu request ini di{" "}
+              <Link href={`/requests/${request.type.toLowerCase()}?view=board`} className="underline underline-offset-4">
+                {request.type} board
+              </Link>
+              . Pertanyaan ke Sales dan detail revisi disampaikan lewat email, agar riwayatnya tetap tercatat.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <StatusForm
+              key={request.status}
+              requestId={request.id}
+              type={request.type}
+              status={request.status}
+              moves={moves}
+              outsideFlow={moves.filter((move) => isOverrideMove(request.status, move, request.type))}
+              overdue={sla.state === "overdue"}
+              pics={pics}
+              currentPicId={request.picId ?? ""}
+            />
+          </CardContent>
+        </Card>
       ) : null}
 
       {mayWork ? (
@@ -305,6 +329,8 @@ export async function RequestPanel({ request, viewer, inProject = false, openEma
           </Table>
         </div>
       </details>
+
+      <BackButton fallback={`/requests/${request.type.toLowerCase()}`} />
 
       {can(viewer.role, "requests.delete") ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 p-4">

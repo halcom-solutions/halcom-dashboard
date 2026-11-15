@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { FormState } from "@/components/ui/form-status";
 import { marginFields } from "@/domain/projects/margin";
+import { REQUEST_STATUS_LABELS, type RequestStatus } from "@/domain/requests/status";
 import { PROJECTS_PATH, REQUESTS_PATH } from "@/features/navigation/links";
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/server/auth/current-user";
@@ -88,7 +89,14 @@ export async function moveRequestAction(requestId: string, to: string, reason?: 
   if (!result.ok) return { ok: false, message: result.message };
   revalidatePath(`/request/${result.value.code}`);
   revalidatePath(REQUESTS_PATH);
+  // A move outside the usual flow (a superadmin's correction) is reported as a warning, so it is noticed.
+  if (result.value.override) return { ok: true, level: "warning", message: `${result.value.code} is now ${REQUEST_STATUS_LABELS[result.value.status as RequestStatus]} (di luar alur biasa, tercatat di audit log).` };
   return { ok: true, message: `${result.value.code} moved.` };
+}
+
+/** The Status drop-down on the request page: the same move as dragging the card on the board. */
+export async function changeStatusAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  return moveRequestAction(text(formData, "requestId") ?? "", text(formData, "to") ?? "", text(formData, "reason") ?? undefined, text(formData, "picId") || undefined);
 }
 
 export async function handOverAction(_previous: FormState, formData: FormData): Promise<FormState> {

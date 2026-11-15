@@ -49,6 +49,7 @@ export const PERMISSION_CATALOG: Record<Permission, Entry> = {
   "users.manage": { category: "user-role-management", label: "Manage users", description: "Buat akun, ubah peran, nonaktifkan, dan reset kata sandi pengguna operasional." },
   "users.manage-privileged": { category: "user-role-management", label: "Manage admin accounts", description: "Buat dan ubah akun Admin dan Superadmin. Hanya Superadmin yang bisa memegangnya." },
   "logins.manage": { category: "user-role-management", label: "Unlock sign-ins", description: "Lihat akun dan alamat yang terkunci karena terlalu sering salah kata sandi, dan buka kuncinya. Hanya Superadmin yang bisa memegangnya." },
+  "users.impersonate": { category: "user-role-management", label: "View as another user", description: "Masuk sebagai akun lain (bukan Admin atau Superadmin) untuk memeriksa tampilannya. Hanya lihat, selama 1 jam, dan tercatat di audit log. Hanya Superadmin yang bisa memegangnya." },
   "users.change-email": { category: "user-role-management", label: "Change user e-mail", description: "Ubah alamat email untuk masuk. Hanya Superadmin yang bisa memegangnya." },
 
   "permissions.view": { category: "permission-management", label: "View permissions", description: "Buka halaman Permissions dan lihat hak akses tiap peran." },
@@ -76,6 +77,7 @@ export const PERMISSION_CATALOG: Record<Permission, Entry> = {
   "requests.create.rfq": { category: "request-workflow", label: "Raise RFQ requests", description: "Ajukan request RFQ (hanya RFQ) untuk project yang ada, misalnya oleh Purchasing atas nama Sales PIC dan SOA PIC project." },
   "requests.delete": { category: "request-workflow", label: "Delete requests", description: "Hapus request BOQ, RFQ, atau PO (disembunyikan dari semua daftar, riwayatnya tetap di audit log)." },
   "requests.edit-dates": { category: "request-workflow", label: "Correct request dates", description: "Atur tanggal request dibuat dan selesai secara manual, untuk tiket yang terlambat diinput atau salah catat. Tiap perubahan masuk audit log." },
+  "requests.override-status": { category: "request-workflow", label: "Move a request to any status", description: "Pindahkan request ke status mana pun di luar alur biasa, misalnya Completed menjadi Cancelled atau Cancelled dibuka lagi. Alasan wajib dan tercatat di riwayat status dan audit log (hanya Superadmin)." },
   "requests.revise": { category: "request-workflow", label: "Request a revision", description: "Kembalikan BOQ yang selesai ke SOA untuk perubahan dari customer: request langsung masuk tahap Revision dan SOA diberi tahu (Sales pada project miliknya)." },
   "requests.email": { category: "request-workflow", label: "Request email text", description: "Salin teks email request untuk dikirim ke tim." },
   "requests.work.boq": { category: "request-workflow", label: "Work BOQ requests", description: "Ubah status request BOQ dan serahkan ke PIC (SOA)." },

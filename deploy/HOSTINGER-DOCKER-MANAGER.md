@@ -76,6 +76,24 @@ Sekali di GitHub: Settings → Environments → `production` (Required reviewers
 
 Skrip berhenti bila volume `halcom-dashboard_postgres_data` tidak ada, supaya tidak membuat database kosong. Cek namanya dulu: `docker volume ls | grep postgres`.
 
+## Dua alamat sekaligus: domain dan nama host VPS
+
+`deploy/Caddyfile` melayani dua alamat bersamaan, masing-masing dengan sertifikatnya sendiri, supaya satu alamat tetap bisa dibuka saat yang lain bermasalah (domain pernah ditangguhkan):
+
+| Variabel di `/opt/halcom/.env` | Isi | Fungsi |
+|---|---|---|
+| `DOMAIN` | `halcom-dashboard.site` | Alamat utama; juga alamat di tautan teks email (`APP_BASE_URL`). |
+| `FALLBACK_DOMAIN` | bawaan `srv2127418.hstgr.cloud` (tidak perlu diisi) | Nama host VPS, selalu dilayani. |
+
+Keduanya harus berbeda: deploy berhenti dengan pesan jelas kalau sama. Cookie login terikat ke satu nama host, jadi pengguna login ulang saat berpindah alamat.
+Saat domain utama bermasalah dan tautan di teks email harus memakai alamat lain, **tukar** isinya (`DOMAIN=srv2127418.hstgr.cloud`, `FALLBACK_DOMAIN=halcom-dashboard.site`), lalu:
+
+```bash
+cd /opt/halcom && docker compose -p halcom-dashboard -f compose.hostinger.yaml up -d --no-deps --force-recreate app caddy
+```
+
+Selama domain utama ditangguhkan, Caddy mencatat error sertifikat untuk alamat itu di log; alamat satunya tetap berjalan, dan sertifikat yang sudah terbit tetap dipakai sampai kedaluwarsa.
+
 ## Backup harian di VPS (`backup-daily.sh`)
 
 Skrip `deploy/backup-daily.sh` ikut disalin ke `/opt/halcom` oleh workflow deploy. Tiap hari ia membuat satu dump penuh ke volume `/backups` milik

@@ -7,7 +7,7 @@ import { allowedTransitions, isRetired, REQUEST_STATUSES, REQUEST_STATUS_LABELS,
 import { REQUEST_TYPES } from "@/domain/requests/types";
 
 /**
- * The User Guide as printable HTML, in editions (D-087): the general one that everyone gets (Sales, SOA, Purchasing, Management),
+ * The User Guide as printable HTML, in editions (D-091): the general one that everyone gets (Sales, SOA, Purchasing, Management),
  * one for Finance and one for Admin and Superadmin, so the detailed steps of administration stay with the people who do them, as on
  * the /guide page. Each edition has a cover with the contents and the workflow, the RACI matrix of the whole workflow, then one part
  * per role of the edition that starts on a new page, then the request statuses. Built from the same definitions as the /guide page (role-guides.ts, workflow.ts, status.ts), so

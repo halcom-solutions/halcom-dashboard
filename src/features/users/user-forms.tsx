@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ALSO_MANAGEMENT_ROLES } from "@/domain/access/permissions";
-import { ROLE_LABELS, type Role } from "@/domain/access/roles";
+import { isPrivilegedRole, ROLE_LABELS, type Role } from "@/domain/access/roles";
 import { SaveText } from "@/components/ui/save-text";
 import {
   changeEmailAction,
@@ -14,6 +14,7 @@ import {
   resetPasswordAction,
   setActiveAction,
   setAlsoManagementAction,
+  startImpersonationAction,
   type ActionState,
 } from "./actions";
 
@@ -112,6 +113,23 @@ export function AlsoManagementForm({ userId, enabled, label }: { userId: string;
   );
 }
 
+/** Opens the application as this account, read only. Superadmin only; the page decides who gets the form. */
+export function ImpersonateForm({ userId, name, label }: { userId: string; name: string; label: string }) {
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(startImpersonationAction, null);
+  return (
+    <form action={formAction} className="flex flex-col gap-1">
+      <input type="hidden" name="userId" value={userId} />
+      <p className="text-sm text-muted-foreground">Periksa tampilan akun ini. Hanya lihat: perubahan tidak disimpan, berlaku 1 jam, dan tercatat di audit log.</p>
+      <div>
+        <Button type="submit" size="sm" variant="outline" disabled={pending} aria-label={`Lihat sebagai ${label}`}>
+          {pending ? "Membuka…" : `Lihat sebagai ${name}`}
+        </Button>
+      </div>
+      <Status state={state} />
+    </form>
+  );
+}
+
 export function ActiveForm({ userId, isActive, label }: { userId: string; isActive: boolean; label: string }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(setActiveAction, null);
 
@@ -171,11 +189,13 @@ export function UserEditDialog({
   roles,
   canChangeEmail,
   canSetManagement,
+  canImpersonate,
 }: {
   user: { id: string; name: string; email: string; role: Role; alsoManagement: boolean; isActive: boolean };
   roles: readonly Role[];
   canChangeEmail: boolean;
   canSetManagement: boolean;
+  canImpersonate: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
@@ -214,6 +234,12 @@ export function UserEditDialog({
             <section className="flex flex-col gap-1.5">
               <h3 className="text-sm font-semibold">Tampilan Management</h3>
               <AlsoManagementForm userId={user.id} enabled={user.alsoManagement} label={user.email} />
+            </section>
+          ) : null}
+          {canImpersonate && user.isActive && !isPrivilegedRole(user.role) ? (
+            <section className="flex flex-col gap-1.5">
+              <h3 className="text-sm font-semibold">Lihat sebagai</h3>
+              <ImpersonateForm userId={user.id} name={user.name} label={user.email} />
             </section>
           ) : null}
           <section className="flex flex-col gap-1.5">

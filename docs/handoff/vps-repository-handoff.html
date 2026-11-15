@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Halcom Dashboard: Serah Terima VPS dan Repository</title>
 <!--
-  Sumber PDF serah terima (D-088). Cetak ulang setelah diubah:
+  Sumber PDF serah terima (D-092). Cetak ulang setelah diubah:
     docker compose --profile test run --rm --no-deps e2e npm run handoff:pdf
   Berkas ini dan PDF-nya TIDAK BOLEH berisi kredensial. Isi tanda [ISI ... DISINI] pada salinan di luar repository
   (password manager atau dokumen terenkripsi), jangan di berkas ini.
@@ -81,7 +81,7 @@
   <p>Halcom Dashboard adalah aplikasi web internal untuk proyek, request BOQ / RFQ / PO, dan pemantauan SLA: Sales → SOA (BOQ) →
   Purchasing (RFQ dan PO), dengan akses baca untuk Finance dan Management.</p>
   <table class="boxes">
-    <tr><td>Alamat produksi</td><td><code>https://halcom-dashboard.site</code> (<code>www.</code> dialihkan ke alamat tanpa www)</td></tr>
+    <tr><td>Alamat produksi</td><td><code>https://halcom-dashboard.site</code> (<code>www.</code> dialihkan ke alamat tanpa www). Alamat cadangan, selalu aktif: nama host VPS <code>https://srv2127418.hstgr.cloud</code></td></tr>
     <tr><td>Server</td><td>Satu Hostinger KVM VPS, Ubuntu 26.04 LTS (x86_64). Paket: <span class="check">[CEK PAKET VPS DI hPanel]</span></td></tr>
     <tr><td>Container</td><td><code>db</code> (PostgreSQL 18.6), <code>migrate</code> (menjalankan migrasi sekali tiap deploy), <code>app</code> (Next.js, Node.js 24), <code>caddy</code> (HTTPS otomatis)</td></tr>
     <tr><td>Database utama</td><td>PostgreSQL di container <code>db</code> pada VPS, volume <code>halcom-dashboard_postgres_data</code></td></tr>
@@ -129,7 +129,8 @@
   <table>
     <thead><tr><th>Variabel</th><th>Nilai</th><th>Keterangan</th></tr></thead>
     <tbody>
-      <tr><td><code>DOMAIN</code></td><td><code>halcom-dashboard.site</code></td><td>Tanpa <code>https://</code></td></tr>
+      <tr><td><code>DOMAIN</code></td><td><code>halcom-dashboard.site</code></td><td>Tanpa <code>https://</code>. Juga alamat di tautan teks email</td></tr>
+      <tr><td><code>FALLBACK_DOMAIN</code></td><td>Kosong (bawaan <code>srv2127418.hstgr.cloud</code>)</td><td>Nama host VPS, dilayani bersamaan dengan <code>DOMAIN</code>. Harus berbeda dari <code>DOMAIN</code></td></tr>
       <tr><td><code>POSTGRES_USER</code></td><td><span class="fill">[ISI DISINI]</span></td><td>Bawaan dokumentasi: <code>halcom</code></td></tr>
       <tr><td><code>POSTGRES_PASSWORD</code></td><td><span class="fill">[ISI PASSWORD DATABASE DISINI]</span></td><td>Hanya karakter <code>A-Za-z0-9-_.~</code></td></tr>
       <tr><td><code>POSTGRES_DB</code></td><td><span class="fill">[ISI DISINI]</span></td><td>Bawaan dokumentasi: <code>halcom</code></td></tr>
@@ -279,6 +280,11 @@ $C up -d app</pre>
   <h3>Mengubah isi <code>.env</code></h3>
   <p>Container hanya membaca <code>.env</code> saat dibuat. Setelah mengubahnya: <code>$C up -d app</code>.</p>
 
+  <h3>Jika domain utama bermasalah</h3>
+  <p>Aplikasi tetap bisa dibuka di nama host VPS. Agar tautan di teks email ikut memakai alamat itu, tukar isinya di <code>.env</code> (<code>DOMAIN=srv2127418.hstgr.cloud</code>, <code>FALLBACK_DOMAIN=halcom-dashboard.site</code>), lalu:</p>
+  <pre>$C up -d --no-deps --force-recreate app caddy</pre>
+  <p class="muted">Cookie login terikat ke satu alamat, jadi pengguna perlu login ulang saat berpindah alamat. Kembalikan isinya setelah domain pulih.</p>
+
   <h3>Peringatan SLA</h3>
   <p>Uji dengan <code>/opt/halcom/sla-scan.sh</code>. Hasil benar: <code>200</code> dan jumlah <code>checked</code>, <code>warnings</code>, <code>dangers</code>, <code>closed</code>. <code>404</code> berarti <code>CRON_SECRET</code> kosong; <code>401</code> berarti secret salah.</p>
 </section>
@@ -328,6 +334,7 @@ docker compose --profile test run --rm e2e</pre>
     <li>Kunci SSH publik penerima ditambahkan ke <code>/home/deploy/.ssh/authorized_keys</code> dan ke user admin; login berhasil.</li>
     <li>Penerima bisa login ke Neon dan ke aplikasi sebagai Superadmin.</li>
     <li>Akses registrar dan DNS domain sudah dipindahkan atau dibagikan.</li>
+    <li>Alamat cadangan <code>https://srv2127418.hstgr.cloud</code> bisa dibuka.</li>
   </ul>
   <h3>Rotasi kredensial (setelah akses penerima berfungsi)</h3>
   <ul class="checklist">

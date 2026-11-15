@@ -15,6 +15,7 @@ import { forgetAccount, forgetAllAccounts, rememberAccount } from "@/server/auth
 import { PASSWORD_CHANGE_PATH } from "@/features/navigation/links";
 import { clearSessionCookie, readSessionToken, setSessionCookie } from "@/server/auth/session-cookie";
 import { createSession, findSessionUser, revokeSession } from "@/server/auth/session-store";
+import { endImpersonation } from "@/server/users/impersonation";
 import { loginSchema } from "@/server/users/schemas";
 
 export type LoginState = { error: string } | null;
@@ -88,6 +89,19 @@ export async function loginAction(_previous: LoginState, formData: FormData): Pr
   // Somebody else chose this password (a new account, a reset, the first superadmin): it is replaced before anything else opens (T-9).
   if (user.mustChangePassword) redirect(PASSWORD_CHANGE_PATH);
   redirect(homePathFor(user.role));
+}
+
+/** Leaves a view-as session and returns the superadmin to their own account, without asking for the password again. */
+export async function exitImpersonationAction(): Promise<void> {
+  const token = await readSessionToken();
+  const back = token ? await endImpersonation(getDb(), token) : null;
+  forgetCachedPages();
+  if (!back) {
+    await clearSessionCookie();
+    redirect("/login");
+  }
+  await setSessionCookie(back.token, back.expiresAt);
+  redirect("/admin/users");
 }
 
 /** Ends the session and clears the cookie. Nothing signs the person back in afterwards: the next visit shows the sign-in page. */

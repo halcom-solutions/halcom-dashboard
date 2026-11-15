@@ -84,6 +84,8 @@ services:
     # the real client address, which the sign-in throttle reads. The file is copied next to this one by the deploy workflow.
     environment:
       DOMAIN: ${DOMAIN:?Set DOMAIN (for example halcom.example.com)}
+      # The VPS host name, answered at the same time as DOMAIN; it must differ from DOMAIN (see deploy/Caddyfile).
+      FALLBACK_DOMAIN: ${FALLBACK_DOMAIN:-srv2127418.hstgr.cloud}
     ports:
       - "80:80"
       - "443:443"

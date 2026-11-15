@@ -5,7 +5,7 @@ import { expect, test } from "@playwright/test";
 const SOURCE = resolve("docs/handoff/vps-repository-handoff.html");
 const OUTPUT = resolve("docs/handoff/halcom-handoff-vps-repository.pdf");
 
-// Values that must never be in the handoff: a filled-in copy belongs in a password manager, not in the repository (D-088).
+// Values that must never be in the handoff: a filled-in copy belongs in a password manager, not in the repository (D-092).
 const SECRET_PATTERNS = [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, /postgres(ql)?:\/\/[^\s"<]*:[^\s"<@]+@/, /gh[pousr]_[A-Za-z0-9]{20,}/, /github_pat_[A-Za-z0-9_]{20,}/];
 
 test("print the VPS and repository handoff", async ({ page }) => {

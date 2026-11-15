@@ -247,7 +247,7 @@ test.describe("projects and requests", () => {
     await soa.goto(requestUrl);
     await expect(soa.locator(`li[id^="request-RFQ-S"] > details[open]`)).toBeVisible();
     await expect(soa.getByRole("heading", { name: /Email text/ })).toHaveCount(0);
-    await expect(soa.getByText(/dragging this request/)).toHaveCount(0); // SOA do not work on an RFQ: no board hint
+    await expect(soa.getByLabel("Ubah status ke")).toHaveCount(0); // SOA do not work on an RFQ: no status drop-down
     await soa.context().close();
   });
 
@@ -693,7 +693,7 @@ test.describe("projects and requests", () => {
     const finance = await asRole(browser, "FINANCE");
     await finance.goto(`/request/${rfq}`);
     await expect(finance.locator(`li#request-${rfq} > details[open]`)).toBeVisible();
-    await expect(finance.getByText(/dragging this request/)).toHaveCount(0); // Finance only reads
+    await expect(finance.getByLabel("Ubah status ke")).toHaveCount(0); // Finance only reads
     await expect(finance.getByLabel("Subjek", { exact: true })).toHaveCount(0);
     await soa.context().close();
     await purchasing.context().close();
@@ -934,7 +934,7 @@ test.describe("account", () => {
     const user = await context.newPage();
     // A password the administrator chose is replaced at the gate, which carries the same form as the Account page (T-9).
     await signInAs(user, email, first);
-    await expect(user.getByRole("heading", { name: "Choose your own password" })).toBeVisible();
+    await expect(user.getByRole("heading", { name: "Ganti kata sandi bawaan Anda" })).toBeVisible();
 
     await user.getByLabel("Current password").fill("not-the-current-password");
     await user.getByLabel("New password", { exact: true }).fill(second);

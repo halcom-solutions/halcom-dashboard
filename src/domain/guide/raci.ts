@@ -4,7 +4,7 @@ import { GUIDE_LANES } from "./workflow";
  * Who does what in the workflow, as a RACI matrix: R does the work, A answers for the result (one per activity), C is asked for
  * input, I is told. Each row is an activity of the User Guide (workflow.ts) and follows the default permissions and notifications
  * (role-guides.ts, D-083): the role that may do a step is R, the role that decides it is A, a role that is notified is I. "A/R"
- * means the same role does the work and answers for it. Printed at the start of every User Guide PDF (D-087).
+ * means the same role does the work and answers for it. Printed at the start of every User Guide PDF (D-091).
  */
 export type RaciCode = "R" | "A" | "A/R" | "C" | "I";
 

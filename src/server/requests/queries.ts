@@ -44,6 +44,8 @@ export type ProjectRow = {
   targetDate: Date | null;
   /** The newest activity on the project (see lastActivityOf). */
   lastUpdated: Date;
+  /** Who made the newest change that names a person (see updatedByOf); "Import" for a row an import wrote; null when nothing names anyone. */
+  updatedByName: string | null;
   nextAction: string | null;
   openRequests: number;
   totalRequests: number;
@@ -114,6 +116,41 @@ const numberOrNull = (value: { toNumber(): number } | null): number | null => (v
 function lastActivityOf(project: { createdAt: Date; updatedAt: Date; actions: { createdAt: Date }[]; changes: { changedAt: Date }[]; requests: { updatedAt: Date }[] }): Date {
   const times = [project.createdAt, project.updatedAt, project.actions[0]?.createdAt, project.changes[0]?.changedAt, project.requests[0]?.updatedAt].filter((time): time is Date => time !== undefined);
   return new Date(Math.max(...times.map((time) => time.getTime())));
+}
+
+type ActivityBy = { at: Date; name: string | null } | undefined;
+
+/**
+ * The person behind the project's last activity, from the records that name one: the newest project audit event (creation, rename,
+ * commercial and technical edits, imports), update feed entry, field change, and status change or PIC handover of one of its requests.
+ * The project row itself stores no editor, so the newest of these is taken; every project write records one of them in the same
+ * transaction, so it is the same event "Last updated" shows. An update feed entry without an author came from an import.
+ */
+function updatedByOf(project: ProjectWithRelations, audit: ActivityBy): string | null {
+  const candidates: ActivityBy[] = [
+    audit,
+    project.actions[0] ? { at: project.actions[0].createdAt, name: project.actions[0].author?.name ?? "Import" } : undefined,
+    project.changes[0] ? { at: project.changes[0].changedAt, name: project.changes[0].changedBy.name } : undefined,
+    ...project.requests.flatMap((request) => [
+      request.statusHistory[0] ? { at: request.statusHistory[0].changedAt, name: request.statusHistory[0].changedBy.name } : undefined,
+      request.picAssignments[0] ? { at: request.picAssignments[0].changedAt, name: request.picAssignments[0].changedBy.name } : undefined,
+    ]),
+  ];
+  let newest: ActivityBy;
+  for (const candidate of candidates) if (candidate && (!newest || candidate.at.getTime() > newest.at.getTime())) newest = candidate;
+  return newest?.name ?? null;
+}
+
+/** The newest audit event of each project, with its actor: one query for a page of projects. */
+async function latestProjectAudit(db: PrismaClient, projectIds: readonly string[]): Promise<Map<string, ActivityBy>> {
+  if (projectIds.length === 0) return new Map();
+  const events = await db.auditEvent.findMany({
+    where: { entityType: "project", entityId: { in: [...projectIds] } },
+    orderBy: [{ entityId: "asc" }, { createdAt: "desc" }],
+    distinct: ["entityId"],
+    select: { entityId: true, createdAt: true, actor: { select: { name: true } } },
+  });
+  return new Map(events.map((event) => [event.entityId, { at: event.createdAt, name: event.actor?.name ?? null }]));
 }
 
 /** Highest project number first, so the newest project is on top (HIT-PROJ-1000 sorts after HIT-PROJ-999). */
@@ -262,14 +299,23 @@ const PROJECT_ROW_INCLUDE = {
   principal: { select: { name: true } },
   principals: { orderBy: { position: "asc" }, select: { principal: { select: { name: true } } } },
   solutionCategory: { select: { name: true } },
-  requests: { where: { deletedAt: null }, select: { status: true, updatedAt: true }, orderBy: { updatedAt: "desc" } },
-  actions: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
-  changes: { orderBy: { changedAt: "desc" }, take: 1, select: { changedAt: true } },
+  requests: {
+    where: { deletedAt: null },
+    select: {
+      status: true,
+      updatedAt: true,
+      statusHistory: { orderBy: { changedAt: "desc" }, take: 1, select: { changedAt: true, changedBy: { select: { name: true } } } },
+      picAssignments: { orderBy: { changedAt: "desc" }, take: 1, select: { changedAt: true, changedBy: { select: { name: true } } } },
+    },
+    orderBy: { updatedAt: "desc" },
+  },
+  actions: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true, author: { select: { name: true } } } },
+  changes: { orderBy: { changedAt: "desc" }, take: 1, select: { changedAt: true, changedBy: { select: { name: true } } } },
 } as const;
 
 type ProjectWithRelations = Prisma.ProjectGetPayload<{ include: typeof PROJECT_ROW_INCLUDE }>;
 
-function toProjectRow(project: ProjectWithRelations): ProjectRow {
+function toProjectRow(project: ProjectWithRelations, audit: Map<string, ActivityBy>): ProjectRow {
   const estimatedValue = numberOrNull(project.estimatedValue);
   return {
     id: project.id,
@@ -289,6 +335,7 @@ function toProjectRow(project: ProjectWithRelations): ProjectRow {
     finalValue: numberOrNull(project.finalValue),
     targetDate: project.targetDate,
     lastUpdated: lastActivityOf(project),
+    updatedByName: updatedByOf(project, audit.get(project.id)),
     nextAction: project.nextAction,
     openRequests: project.requests.filter((request) => isOpen(request.status)).length,
     totalRequests: project.requests.length,
@@ -305,7 +352,8 @@ export async function listProjects(db: PrismaClient, viewer: Viewer, filter: Pro
     take: LIST_LIMIT,
     include: PROJECT_ROW_INCLUDE,
   });
-  const rows = projects.sort(byCodeDescending).map(toProjectRow);
+  const audit = await latestProjectAudit(db, projects.map((project) => project.id));
+  const rows = projects.sort(byCodeDescending).map((project) => toProjectRow(project, audit));
   return filter.show === "weighted" ? rows.filter((row) => (row.weightedValue ?? 0) > 0) : rows;
 }
 
@@ -343,7 +391,8 @@ export async function searchProjects(
   const slice = pageSize === "all" ? ordered : ordered.slice((page - 1) * pageSize, page * pageSize);
   const found = await db.project.findMany({ where: { id: { in: slice.map((key) => key.id) } }, include: PROJECT_ROW_INCLUDE });
   const position = new Map(slice.map((key, index) => [key.id, index]));
-  const rows = found.sort((a, b) => position.get(a.id)! - position.get(b.id)!).map(toProjectRow);
+  const audit = await latestProjectAudit(db, found.map((project) => project.id));
+  const rows = found.sort((a, b) => position.get(a.id)! - position.get(b.id)!).map((project) => toProjectRow(project, audit));
   return { rows, total, page, pageCount, pageSize };
 }
 

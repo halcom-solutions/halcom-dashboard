@@ -8,6 +8,7 @@ export const PROJECT_COLUMNS = [
   { key: "salesPic", label: "Sales PIC" },
   { key: "technicalPic", label: "Technical PIC" },
   { key: "lastUpdated", label: "Last updated" },
+  { key: "updatedBy", label: "Updated By" },
   { key: "openRequests", label: "Open requests" },
 ] as const;
 export type ProjectColumnKey = (typeof PROJECT_COLUMNS)[number]["key"];

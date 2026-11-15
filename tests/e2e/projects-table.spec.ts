@@ -85,11 +85,14 @@ test("clicking anywhere on a project row opens the project, and an Other project
 
   await page.goto(`/projects?q=${code}`);
   // With the sidebar open every column still fits: the table follows the width of the page, not of the window.
-  for (const head of ["Status", "Principals", "Sales PIC", "Technical PIC", "Last updated", "Open requests"]) await expect(page.getByRole("columnheader", { name: head })).toBeVisible();
+  for (const head of ["Status", "Principals", "Sales PIC", "Technical PIC", "Last updated", "Updated By", "Open requests"]) await expect(page.getByRole("columnheader", { name: head })).toBeVisible();
   const row = page.getByRole("row").filter({ hasText: name });
   await expect(row.getByText("E2E Mitra")).toBeVisible();
   await expect(row.getByText("Other", { exact: true })).toBeVisible();
   await expect(row).not.toContainText("(external)");
+  // Updated By names the account that made the last change: SOA registered it (the shared SOA login).
+  const updatedBy = await page.getByRole("columnheader").evaluateAll((heads) => heads.findIndex((head) => head.textContent?.trim() === "Updated By"));
+  await expect(row.getByRole("cell").nth(updatedBy)).not.toHaveText("–");
   // The click lands on the project name cell, not on the Project ID link.
   await row.getByText(name).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${code}$`));

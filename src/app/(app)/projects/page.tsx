@@ -246,6 +246,7 @@ async function Projects({ searchParams }: Pick<PageProps<"/projects">, "searchPa
               {showing.has("salesPic") ? <SortableHead label="Sales PIC" column="salesOwner" active={sort === "salesOwner"} dir={dir} href={sortHref} className="hidden @3xl:table-cell" /> : null}
               {showing.has("technicalPic") ? <SortableHead label="Technical PIC" column="technicalPic" active={sort === "technicalPic"} dir={dir} href={sortHref} className="hidden @3xl:table-cell" /> : null}
               {showing.has("lastUpdated") ? <SortableHead label="Last updated" column="lastUpdate" active={sort === "lastUpdate"} dir={dir} href={sortHref} className="hidden @3xl:table-cell" /> : null}
+              {showing.has("updatedBy") ? <TableHead className="hidden @3xl:table-cell">Updated By</TableHead> : null}
               {showing.has("openRequests") ? <TableHead className="hidden text-right @3xl:table-cell">Open requests</TableHead> : null}
             </TableRow>
           </TableHeader>
@@ -286,6 +287,7 @@ async function Projects({ searchParams }: Pick<PageProps<"/projects">, "searchPa
                 ) : null}
                 {showing.has("technicalPic") ? <TableCell className="hidden @3xl:table-cell">{project.technicalPicName ?? "–"}</TableCell> : null}
                 {showing.has("lastUpdated") ? <TableCell className="hidden whitespace-nowrap @3xl:table-cell">{formatDay(project.lastUpdated)}</TableCell> : null}
+                {showing.has("updatedBy") ? <TableCell className="hidden break-words whitespace-normal @3xl:table-cell">{project.updatedByName ?? <span className="text-muted-foreground">–</span>}</TableCell> : null}
                 {showing.has("openRequests") ? (
                   <TableCell className="hidden text-right tabular-nums @3xl:table-cell">
                     {project.openRequests} / {project.totalRequests}

@@ -62,6 +62,12 @@ async function moveCard(page: Page, type: "BOQ" | "RFQ" | "PO", code: string, co
   // A drag before the page is interactive does nothing, so the whole step is retried.
   await expect(async () => {
     await card.dragTo(target);
+    // Starting a request asks which PIC takes it (a BOQ only while it has none): pick the first.
+    const startPic = page.getByRole("dialog", { name: /^Siapa PIC untuk/ });
+    if (column === "IN_PROGRESS" && (await startPic.isVisible({ timeout: 2000 }).catch(() => false))) {
+      await startPic.getByLabel("PIC").selectOption({ index: 1 });
+      await startPic.getByRole("button", { name: "Mulai dikerjakan" }).click();
+    }
     if (reason !== undefined) {
       await page.getByRole("dialog").getByLabel("Reason").fill(reason, { timeout: 3000 });
       await page.getByRole("dialog").getByRole("button", { name: /^(Cancel request|Request revision)$/ }).click({ timeout: 3000 });

@@ -68,7 +68,7 @@ export function StatusForm({
   }
 
   const target = to === "" ? null : to;
-  const needsPic = target !== null && startAsksForPic(type, status, target);
+  const needsPic = target !== null && startAsksForPic(type, status, target, currentPicId !== "");
   const isOutside = target !== null && outsideFlow.includes(target);
   const needsReason = target !== null && (reasonRequired(status, target) || isOutside || (target === "COMPLETED" && type !== "BOQ" && overdue));
   const ready = target !== null && (!needsReason || reason.trim() !== "") && (!needsPic || picId !== "");

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
-import { startAsksForPic, type PicOption } from "@/domain/pics/teams";
+import { PIC_TEAM_LABELS, picTeamOf, startAsksForPic, type PicOption } from "@/domain/pics/teams";
 import { boardColumns, columnOf, isOverrideMove, movesFor, reasonRequired, REQUEST_STATUS_LABELS, type RequestStatus } from "@/domain/requests/status";
 import type { RequestType } from "@/domain/requests/types";
 import { cn } from "@/lib/utils";
@@ -40,12 +40,15 @@ export function RequestBoard({
   type,
   movable,
   pics,
+  boqPics = [],
   canOverride = false,
 }: {
   rows: RequestRow[];
   type: RequestType | null;
   movable: Readonly<Record<RequestType, boolean>>;
+  /** The active Purchasing PICs (for an RFQ or a PO); `boqPics` are the SOA PICs (for a BOQ that has none yet). */
   pics: readonly PicOption[];
+  boqPics?: readonly PicOption[];
   canOverride?: boolean;
 }) {
   const router = useRouter();
@@ -62,6 +65,9 @@ export function RequestBoard({
   const [starting, setStarting] = useState<PendingStart | null>(null);
   const [startPic, setStartPic] = useState("");
   const startDialog = useRef<HTMLDialogElement>(null);
+  // The PIC list of the team that works the request being started: SOA for a BOQ, Purchasing for an RFQ or a PO.
+  const startTeam = starting ? PIC_TEAM_LABELS[picTeamOf(starting.card.type)] : "";
+  const startPics = starting?.card.type === "BOQ" ? boqPics : pics;
   const columns = boardColumns(type);
   const mainColumns = columns.filter((status) => !FOLDED.has(status));
   const foldedColumns = columns.filter((status) => FOLDED.has(status));
@@ -111,7 +117,7 @@ export function RequestBoard({
   }, [dragging]);
 
   function move(card: RequestRow, to: RequestStatus, why?: string, picId?: string) {
-    const picName = picId ? (pics.find((pic) => pic.id === picId)?.name ?? card.assigneeName) : card.assigneeName;
+    const picName = picId ? ([...pics, ...boqPics].find((pic) => pic.id === picId)?.name ?? card.assigneeName) : card.assigneeName;
     setCards((current) => current.map((row) => (row.id === card.id ? { ...row, status: to, statusChangedAt: new Date(), assigneeId: picId ?? row.assigneeId, assigneeName: picName } : row)));
     setMessage(null);
     startTransition(async () => {
@@ -133,7 +139,7 @@ export function RequestBoard({
     setOver(null);
     setDragging(null);
     if (!card || !accepts(card, to)) return;
-    if (startAsksForPic(card.type, card.status, to)) {
+    if (startAsksForPic(card.type, card.status, to, card.assigneeId !== null)) {
       setStartPic(card.assigneeId ?? "");
       setStarting({ card });
       startDialog.current?.showModal();
@@ -322,7 +328,7 @@ export function RequestBoard({
             <h2 id="board-start-title" className="text-base font-semibold">
               Siapa PIC untuk {starting?.card.code}?
             </h2>
-            <p className="text-sm text-muted-foreground">Pilih PIC Purchasing yang mengerjakan request ini. Request pindah ke In progress setelah PIC disimpan.</p>
+            <p className="text-sm text-muted-foreground">Pilih PIC {startTeam} yang mengerjakan request ini. Request pindah ke In progress setelah PIC disimpan.</p>
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="board-start-pic" className="text-sm font-medium">
@@ -330,13 +336,13 @@ export function RequestBoard({
             </label>
             <NativeSelect id="board-start-pic" value={startPic} onChange={(event) => setStartPic(event.target.value)} required>
               <option value="">Pilih PIC</option>
-              {pics.map((pic) => (
+              {startPics.map((pic) => (
                 <option key={pic.id} value={pic.id}>
                   {pic.name}
                 </option>
               ))}
             </NativeSelect>
-            {pics.length === 0 ? <p className="text-xs text-destructive">Belum ada PIC Purchasing yang aktif. Minta Admin menambahkannya di halaman PICs.</p> : null}
+            {startPics.length === 0 ? <p className="text-xs text-destructive">Belum ada PIC {startTeam} yang aktif. Minta Admin menambahkannya di halaman PICs.</p> : null}
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={cancelStart}>

@@ -51,7 +51,7 @@ export async function changeRoleAction(_previous: ActionState, formData: FormDat
   return toState(result, "Role updated.");
 }
 
-/** Superadmin only: opens the application as another account, read only. The superadmin own session is closed; leaving the mode opens a new one. */
+/** Superadmin only: opens the application as another account and works as it. The superadmin own session is closed; leaving the mode opens a new one. */
 export async function startImpersonationAction(_previous: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requirePermission("users.impersonate");
   const result = await startImpersonation(getDb(), { id: user.id, role: user.role }, String(formData.get("userId")));

@@ -3,7 +3,7 @@ import { AppShell } from "@/components/app-shell/app-shell";
 import { Button } from "@/components/ui/button";
 import { can } from "@/domain/access/permissions";
 import { ROLE_LABELS } from "@/domain/access/roles";
-import { logoutAction, switchAccountAction } from "@/features/auth/actions";
+import { logoutAction } from "@/features/auth/actions";
 import { ImpersonationBanner } from "@/features/auth/impersonation-banner";
 import { SessionKeepAlive } from "@/features/auth/session-keep-alive";
 import { ACCOUNT_PATH, GUIDE_PATH, NOTIFICATIONS_PATH, navSectionsFor } from "@/features/navigation/links";
@@ -42,19 +42,11 @@ async function AuthenticatedShell({ children }: { children: React.ReactNode }) {
       guideHref={GUIDE_PATH}
       controls={can(user.role, "theme.switch") ? <ThemeSwitcher /> : null}
       signOut={
-        <div className="flex flex-col gap-2">
-          {/* Ends this session, then shows the sign-in page with the accounts used on this browser. */}
-          <form action={switchAccountAction}>
-            <Button type="submit" variant="outline" className="w-full">
-              Switch account
-            </Button>
-          </form>
-          <form action={logoutAction}>
-            <Button type="submit" variant="outline" className="w-full">
-              Sign out
-            </Button>
-          </form>
-        </div>
+        <form action={logoutAction}>
+          <Button type="submit" variant="outline" className="w-full">
+            Sign out
+          </Button>
+        </form>
       }
     >
       {user.impersonatedBy ? <ImpersonationBanner viewing={user.name} roleLabel={ROLE_LABELS[user.role]} by={user.impersonatedBy.name} /> : <SessionKeepAlive />}

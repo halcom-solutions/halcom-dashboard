@@ -1098,3 +1098,12 @@ The preview of each template (filled with sample data) is no longer a long block
 
 - **No credentials in it.** Every secret is a placeholder `[ISI ... DISINI]`, to be filled in a copy kept outside the repository (a password manager); values that only the server or GitHub can confirm are marked `[CEK ...]`. The print script refuses to print if the source contains something that looks like a private key, a connection string with a password, or a GitHub token.
 - Facts come from `deploy/`, the two workflows, `compose.hostinger.yaml`, the decisions (D-065, D-078 to D-080, D-083) and the code (sign-in throttle). The cron lines are the documented ones; the live crontab is to be copied in during the handoff.
+
+## D-093: No Switch account; a superadmin enters another account and works in it (2026-11-16)
+
+**Asked by the owner.** Supersedes the Switch Account part of D-026 and the read-only rule of D-083.
+
+- **Switch account is gone.** The button in the profile menu, the "Switch account" card on the sign-in page (`/login?switch=1`) and signing in to a remembered account without a password are removed. Signing in always asks for the password. The "Recent accounts" list on the sign-in page stays: it only fills in the e-mail.
+- **Entering an account.** The superadmin's "Masuk sebagai" (formerly "Lihat sebagai") in the user's Edit window opens the account as before (same targets: active, not Admin or Superadmin; one hour, never renewed), but changes are no longer refused: the superadmin works with that account's permissions, and the first-sign-in password page does not get in the way.
+- **Audit.** What is changed inside the account is recorded with that account as the actor, as if the person had done it. `user.impersonation_started` and `user.impersonation_ended` (superadmin as actor) mark the window, so a change in that hour can be traced to the superadmin.
+- **Left in place.** The `device_credentials` table and its clean-up calls stay (no migration); nothing issues or reads a credential any more. The modules that did (`src/server/auth/device-*.ts`, `src/domain/access/device.ts`) and their tests are deleted.

@@ -106,6 +106,8 @@ export async function RequestList({
   const { rows } = result;
   // The board asks which Purchasing PIC takes an RFQ or PO that is started, so the people who may work on them need the list.
   const pics = board && canWorkOn(viewer.role, "RFQ") ? await listAssignablePics(getDb(), { id: viewer.id, role: viewer.role }, "RFQ") : [];
+  // SOA is asked the same for a BOQ that has no PIC yet, so the people who may work on BOQs need the SOA list.
+  const boqPics = board && canWorkOn(viewer.role, "BOQ") ? await listAssignablePics(getDb(), { id: viewer.id, role: viewer.role }, "BOQ") : [];
   const statusValue = filter.kind === "open" ? "open" : filter.kind === "status" ? filter.status : undefined;
   /** A link to this list with some parts changed; `null` clears a part, an omitted part stays as it is. */
   const href = (next: { status?: string | null; q?: string | null; sort?: RequestSort; dir?: "asc" | "desc"; page?: number; view?: "board" | "list" }) => {
@@ -239,6 +241,7 @@ export async function RequestList({
           movable={Object.fromEntries(REQUEST_TYPES.map((t) => [t, canWorkOn(viewer.role, t)])) as Record<RequestType, boolean>}
           canOverride={can(viewer.role, "requests.override-status")}
           pics={pics}
+          boqPics={boqPics}
         />
       ) : (
       <RequestTable

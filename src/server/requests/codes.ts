@@ -61,6 +61,11 @@ export async function recodeFor(tx: Tx, type: RequestType, prefix: string, yy: s
   return formatCode(scope, await nextSequence(tx, scope));
 }
 
+/** The next code of a PIC's counter: the PIC's prefix (see `codePrefixForPic`) and the year of `now`. */
+export async function nextRequestCodeForPic(tx: Tx, type: RequestType, pic: { id: string; name: string; codePrefix: string | null }, now: Date): Promise<string> {
+  return recodeFor(tx, type, await codePrefixForPic(tx, pic), twoDigitYear(now));
+}
+
 /** Prefixes already used by people or by PICs: one prefix belongs to one of them. */
 async function takenPrefixes(tx: Tx): Promise<Set<string>> {
   const [users, pics] = await Promise.all([

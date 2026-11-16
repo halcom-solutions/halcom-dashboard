@@ -19,9 +19,9 @@ export function picTeamOf(type: RequestType): PicTeam {
 export type PicOption = { id: string; name: string };
 
 /**
- * Starting an RFQ or a PO (moving it from Submitted to In progress on the board) asks Purchasing which PIC takes it. A BOQ does not:
- * SOA's BOQs are handed to a PIC from the request page, as before.
+ * Starting a request (moving it from Submitted to In progress) asks which PIC takes it. Purchasing is always asked for an RFQ or a PO. SOA is
+ * asked for a BOQ only while it has no PIC: a BOQ that already has one keeps it. `hasPic` says whether the request has a PIC.
  */
-export function startAsksForPic(type: RequestType, from: string, to: string): boolean {
-  return type !== "BOQ" && from === "SUBMITTED" && to === "IN_PROGRESS";
+export function startAsksForPic(type: RequestType, from: string, to: string, hasPic = false): boolean {
+  return (type !== "BOQ" || !hasPic) && from === "SUBMITTED" && to === "IN_PROGRESS";
 }

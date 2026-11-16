@@ -113,16 +113,16 @@ export function AlsoManagementForm({ userId, enabled, label }: { userId: string;
   );
 }
 
-/** Opens the application as this account, read only. Superadmin only; the page decides who gets the form. */
+/** Opens the application as this account, with what it may do. Superadmin only; the page decides who gets the form. */
 export function ImpersonateForm({ userId, name, label }: { userId: string; name: string; label: string }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(startImpersonationAction, null);
   return (
     <form action={formAction} className="flex flex-col gap-1">
       <input type="hidden" name="userId" value={userId} />
-      <p className="text-sm text-muted-foreground">Periksa tampilan akun ini. Hanya lihat: perubahan tidak disimpan, berlaku 1 jam, dan tercatat di audit log.</p>
+      <p className="text-sm text-muted-foreground">Bekerja sebagai akun ini tanpa kata sandinya. Perubahan tersimpan atas nama akun ini, berlaku 1 jam, dan masuk-keluarnya tercatat di audit log.</p>
       <div>
-        <Button type="submit" size="sm" variant="outline" disabled={pending} aria-label={`Lihat sebagai ${label}`}>
-          {pending ? "Membuka…" : `Lihat sebagai ${name}`}
+        <Button type="submit" size="sm" variant="outline" disabled={pending} aria-label={`Masuk sebagai ${label}`}>
+          {pending ? "Membuka…" : `Masuk sebagai ${name}`}
         </Button>
       </div>
       <Status state={state} />
@@ -238,7 +238,7 @@ export function UserEditDialog({
           ) : null}
           {canImpersonate && user.isActive && !isPrivilegedRole(user.role) ? (
             <section className="flex flex-col gap-1.5">
-              <h3 className="text-sm font-semibold">Lihat sebagai</h3>
+              <h3 className="text-sm font-semibold">Masuk sebagai</h3>
               <ImpersonateForm userId={user.id} name={user.name} label={user.email} />
             </section>
           ) : null}

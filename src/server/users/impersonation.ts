@@ -8,9 +8,9 @@ import type { Actor, UserResult } from "./service";
 const fail = (message: string, code: "FORBIDDEN" | "NOT_FOUND" | "INVALID_INPUT" = "FORBIDDEN"): UserResult<never> => ({ ok: false, code, message });
 
 /**
- * A superadmin opens the application as another account to check what that person sees. The target must be an active account that is not
- * Admin or Superadmin and not the superadmin's own. The session is the target's, lasts one hour, is never renewed, and the application
- * refuses every change made through it (see requireUser). Opening it is written to the audit log with the superadmin as the actor.
+ * A superadmin enters another account and works as it, changes included (they are recorded as that account's). The target must be an
+ * active account that is not Admin or Superadmin and not the superadmin's own. The session is the target's, lasts one hour and is never
+ * renewed. Opening and leaving it are written to the audit log with the superadmin as the actor, so the window can be traced.
  */
 export async function startImpersonation(db: PrismaClient, claimedActor: Actor, userId: string): Promise<UserResult<{ token: string; expiresAt: Date; role: Role }>> {
   const id = uuidSchema.safeParse(userId);

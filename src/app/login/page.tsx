@@ -7,10 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { APP_NAME, APP_TAGLINE } from "@/config/app";
 import { homePathFor } from "@/domain/access/dashboards";
 import { ROLE_LABELS } from "@/domain/access/roles";
-import { forgetAllRecentAccountsAction, forgetRecentAccountAction, forgetRememberedAccountAction, switchToRememberedAction } from "@/features/auth/actions";
+import { forgetAllRecentAccountsAction, forgetRecentAccountAction } from "@/features/auth/actions";
 import { LoginForm } from "@/features/auth/login-form";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { readRememberedAccounts, type RememberedAccount } from "@/server/auth/device-accounts";
 import { readRecentAccounts } from "@/server/auth/recent-accounts";
 
 export default function LoginPage({ searchParams }: PageProps<"/login">) {
@@ -23,7 +22,7 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
           <p className="text-sm text-muted-foreground">{APP_TAGLINE}</p>
         </div>
         {/* Reads the recent-accounts cookie and the query string, so it streams in behind Suspense. */}
-        <Suspense fallback={<SignInCard accounts={[]} remembered={[]} chosen="" />}>
+        <Suspense fallback={<SignInCard accounts={[]} chosen="" />}>
           <SignIn searchParams={searchParams} />
         </Suspense>
         <Link href="/privacy" className="text-center text-xs text-muted-foreground underline-offset-4 hover:underline">
@@ -40,17 +39,14 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
 
 async function SignIn({ searchParams }: Pick<PageProps<"/login">, "searchParams">) {
   const query = await searchParams;
-  // Accounts remembered on this browser are offered without a password only while switching, never after a plain sign-out.
-  const remembered = query.switch === "1" ? await readRememberedAccounts() : [];
-  const rememberedEmails = new Set(remembered.map((account) => account.email));
-  const accounts = (await readRecentAccounts()).filter((account) => !rememberedEmails.has(account.email));
+  const accounts = await readRecentAccounts();
   const wanted = query.account;
   // Only an account this browser has really used can be preselected; anything else in the URL is ignored.
   const chosen = typeof wanted === "string" ? (accounts.find((account) => account.email === wanted.trim().toLowerCase())?.email ?? "") : "";
-  return <SignInCard accounts={accounts} remembered={remembered} chosen={chosen} />;
+  return <SignInCard accounts={accounts} chosen={chosen} />;
 }
 
-function SignInCard({ accounts, remembered, chosen }: { accounts: Awaited<ReturnType<typeof readRecentAccounts>>; remembered: RememberedAccount[]; chosen: string }) {
+function SignInCard({ accounts, chosen }: { accounts: Awaited<ReturnType<typeof readRecentAccounts>>; chosen: string }) {
   return (
     <>
       <Card>
@@ -63,44 +59,6 @@ function SignInCard({ accounts, remembered, chosen }: { accounts: Awaited<Return
           <LoginForm key={chosen} defaultEmail={chosen} />
         </CardContent>
       </Card>
-      {remembered.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              <h2>Switch account</h2>
-            </CardTitle>
-            <CardDescription>Akun yang diingat di browser ini. Pilih satu untuk masuk tanpa kata sandi.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul aria-label="Remembered accounts" className="flex flex-col gap-2">
-              {remembered.map((account) => (
-                <li key={account.credentialId} className="flex items-center gap-2">
-                  <form action={switchToRememberedAction} className="min-w-0 flex-1">
-                    <input type="hidden" name="credentialId" value={account.credentialId} />
-                    <button type="submit" className="w-full rounded-lg border px-3 py-2 text-left text-sm hover:bg-muted">
-                      <span className="block truncate font-medium">Continue as {account.name}</span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {account.email} · {ROLE_LABELS[account.role]}
-                      </span>
-                    </button>
-                  </form>
-                  <form action={forgetRememberedAccountAction}>
-                    <input type="hidden" name="credentialId" value={account.credentialId} />
-                    <Button type="submit" variant="ghost" size="sm" aria-label={`Forget account ${account.email} on this browser`}>
-                      Forget account
-                    </Button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-            <form action={forgetAllRecentAccountsAction} className="mt-3">
-              <Button type="submit" variant="outline" size="sm">
-                Forget all accounts on this browser
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      ) : null}
       {accounts.length > 0 ? (
         <Card>
           <CardHeader>
@@ -132,13 +90,11 @@ function SignInCard({ accounts, remembered, chosen }: { accounts: Awaited<Return
                 </li>
               ))}
             </ul>
-            {remembered.length === 0 ? (
-              <form action={forgetAllRecentAccountsAction}>
-                <Button type="submit" variant="outline" size="sm">
-                  Forget all accounts on this browser
-                </Button>
-              </form>
-            ) : null}
+            <form action={forgetAllRecentAccountsAction}>
+              <Button type="submit" variant="outline" size="sm">
+                Forget all accounts on this browser
+              </Button>
+            </form>
           </CardContent>
         </Card>
       ) : null}

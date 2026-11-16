@@ -391,7 +391,7 @@ test("a superadmin gives a Sales user the Management view; an admin has no such 
   await adminContext.close();
 });
 
-test("a superadmin views the app as another user, read only, and returns to their own account", async ({ page, browser }) => {
+test("a superadmin enters another user's account, saves a change there, and returns to their own account", async ({ page, browser }) => {
   test.setTimeout(150_000);
   const stamp = Date.now();
   const email = `e2e-viewas-${stamp}@example.invalid`;
@@ -408,20 +408,22 @@ test("a superadmin views the app as another user, read only, and returns to thei
 
   await page.getByRole("button", { name: `Edit ${email}` }).click();
   await expect(async () => {
-    await page.getByRole("button", { name: `Lihat sebagai ${email}` }).click();
+    await page.getByRole("button", { name: `Masuk sebagai ${email}` }).click();
     await expect(page.getByTestId("impersonation-banner")).toBeVisible({ timeout: 8000 });
   }).toPass({ timeout: 45_000 });
   await expect(page.getByTestId("impersonation-banner")).toContainText("E2E ViewAs");
-  // The account is still flagged to choose its own password, but the superadmin looks at the app, not at that gate.
+  // The account is still flagged to choose its own password, but the superadmin works in the app, not at that gate.
   await expect(page).not.toHaveURL(/password-change/);
 
-  // A change made while viewing is refused: the viewed account keeps its password.
-  await page.goto("/password-change");
-  await page.getByLabel("Current password").fill(password);
-  await page.getByLabel("New password", { exact: true }).fill("e2e-changed-by-viewer-1");
-  await page.getByLabel("Confirm new password").fill("e2e-changed-by-viewer-1");
-  await page.getByRole("button", { name: /password/i }).first().click();
-  await page.waitForTimeout(1500);
+  // A change made inside the account is saved, as that account's (a new account, so this year has no targets yet).
+  await page.goto("/targets");
+  await expect(async () => {
+    await page.getByLabel("Q1 gross profit target").fill("100");
+    await page.getByRole("button", { name: /^Save my \d{4} targets$/ }).click();
+    await expect(page.getByRole("status").filter({ hasText: /Saved targets for Q1|Tidak ada perubahan/ })).toBeVisible({ timeout: 8000 });
+  }).toPass({ timeout: 30_000 });
+  await page.reload();
+  await expect(page.getByLabel("Q1 gross profit target")).toHaveValue("100");
 
   await page.goto("/");
   await page.getByRole("button", { name: "Keluar dari mode ini" }).click();

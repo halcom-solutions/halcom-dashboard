@@ -65,9 +65,9 @@ export default function PrivacyPage() {
             <strong>Session cookie:</strong> keeps you signed in. HttpOnly, Secure, SameSite=Lax.
           </li>
           <li>
-            <strong>Remembered accounts</strong> (<code>recent_accounts</code>, <code>device_accounts</code>): the name, e-mail and role
-            of staff accounts used on this browser, to make switching accounts quicker (30 days at most). They hold no password, and
-            each entry can be removed from the sign-in page.
+            <strong>Recent accounts</strong> (<code>recent_accounts</code>): the name, e-mail and role of staff accounts used on this
+            browser, so the sign-in page can fill in the e-mail (30 days at most). It holds no password, and each entry can be removed
+            from the sign-in page.
           </li>
           <li>
             <strong>Theme choice:</strong> light or dark, kept in the browser&apos;s local storage.

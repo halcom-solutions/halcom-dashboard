@@ -49,32 +49,20 @@ test.describe("persistent login and switching accounts", () => {
     expect(stored).not.toContain(cookie!.value);
   });
 
-  test("Switch Account ends the session, asks for the next account's password, and shows nothing of the previous user", async ({ page, context }) => {
+  test("there is no Switch account: after signing out, the next account needs its password, and nothing of the previous user shows", async ({ page }) => {
     await signIn(page, "SALES");
     await expectOnDashboard(page, "/dashboard/sales", "Sales pipeline");
-    const oldCookie = (await sessionCookie(page))!;
 
     await page.getByRole("button", { name: "Profile menu" }).click();
-    await page.getByRole("button", { name: "Switch account" }).click();
-
-    // The session is over: the login page is shown with the account used here, remembered on this browser.
-    await expect(page).toHaveURL(/\/login\?switch=1$/);
-    await expect(page.getByRole("heading", { name: "Switch account" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Continue as Satrio/ })).toBeVisible();
-    expect(await sessionCookie(page)).toBeUndefined();
-    await page.goto("/dashboard/sales");
+    await expect(page.getByRole("button", { name: "Switch account" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/login$/);
-
-    // The old cookie is revoked on the server, not merely deleted in this browser.
-    await context.addCookies([oldCookie]);
-    await page.goto("/dashboard/sales");
-    await expect(page).toHaveURL(/\/login$/);
-    await context.clearCookies({ name: "session" });
-
-    // Once the browser forgets the remembered account, picking it only fills the email; the password is required again, and a wrong one signs nobody in.
-    await context.clearCookies({ name: "device_accounts" });
+    // No account is continued without a password, not even through the old address.
     await page.goto("/login?switch=1");
+    await expect(page.getByRole("heading", { name: "Switch account" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Continue as/ })).toHaveCount(0);
+
+    // Picking a recent account only fills the email; a wrong password signs nobody in.
     await page.getByRole("link", { name: new RegExp(seedEmailFor("SALES")) }).click();
     await expect(page.getByLabel("Email")).toHaveValue(seedEmailFor("SALES"));
     await expect(page.getByLabel("Password")).toBeFocused();
@@ -100,66 +88,6 @@ test.describe("persistent login and switching accounts", () => {
     await expect(nav(page).getByRole("link", { name: "Sales pipeline" })).toHaveCount(0);
     await expectNotFound(page, "/dashboard/sales", "Request counts");
     await expectNotFound(page, "/targets", "My 2026 targets");
-  });
-
-  test("a remembered account is continued without a password, and again after that (the token is replaced on every use)", async ({ page, context }) => {
-    await signIn(page, "SALES");
-    const stored = (await context.cookies()).find((cookie) => cookie.name === "device_accounts");
-    // The browser keeps only a credential id and a random token: no name, email or role, and nothing readable by scripts.
-    expect(stored?.httpOnly).toBe(true);
-    const entries = JSON.parse(decodeURIComponent(stored!.value)) as Record<string, unknown>[];
-    expect(entries).toHaveLength(1);
-    expect(Object.keys(entries[0]!).sort()).toEqual(["id", "token"]);
-    expect(stored!.value).not.toMatch(/Sales|example|SALES/);
-
-    for (const round of [1, 2]) {
-      await page.getByRole("button", { name: "Profile menu" }).click();
-      await page.getByRole("button", { name: "Switch account" }).click();
-      await expect(page).toHaveURL(/\/login\?switch=1$/);
-      await expect(page.getByRole("list", { name: "Remembered accounts" })).toContainText(seedEmailFor("SALES"));
-      await expect(async () => {
-        await page.getByRole("button", { name: /Continue as Satrio/ }).click();
-        await expect(page).toHaveURL(/\/dashboard\/sales$/, { timeout: 8000 });
-      }).toPass({ timeout: 40_000 });
-      expect(await sessionCookie(page), `round ${round}`).toBeDefined();
-      await expect(async () => {
-        await page.getByRole("button", { name: "Profile menu" }).click();
-        await expect(page.locator("#profile-menu").getByText("Satrio", { exact: true }).first()).toBeVisible({ timeout: 3000 });
-      }).toPass({ timeout: 30_000 });
-      await page.keyboard.press("Escape");
-    }
-    const after = (await context.cookies()).find((cookie) => cookie.name === "device_accounts");
-    expect(after!.value).not.toBe(stored!.value); // the token was replaced
-  });
-
-  test("Admin and Superadmin are never remembered: switching to them asks for the password", async ({ page, context }) => {
-    for (const role of ["SALES", "ADMIN", "SUPERADMIN"] as const) {
-      await signIn(page, role);
-      await page.getByRole("button", { name: "Profile menu" }).click();
-      await page.getByRole("button", { name: "Switch account" }).click();
-      await expect(page).toHaveURL(/\/login\?switch=1$/);
-    }
-    // Only the Sales account was remembered; the two administrators are offered as a quick pick that fills the email.
-    const remembered = page.getByRole("list", { name: "Remembered accounts" });
-    await expect(remembered).toContainText(seedEmailFor("SALES"));
-    await expect(remembered).not.toContainText(seedEmailFor("ADMIN"));
-    await expect(remembered).not.toContainText(seedEmailFor("SUPERADMIN"));
-    await expect(page.getByRole("link", { name: /Admin/ }).first()).toBeVisible();
-    const entries = JSON.parse(decodeURIComponent((await context.cookies()).find((cookie) => cookie.name === "device_accounts")!.value)) as unknown[];
-    expect(entries).toHaveLength(1);
-  });
-
-  test("Forget stops remembering one account: its password is asked again", async ({ page }) => {
-    await signIn(page, "FINANCE");
-    await page.getByRole("button", { name: "Profile menu" }).click();
-    await page.getByRole("button", { name: "Switch account" }).click();
-    await expect(page.getByRole("button", { name: /Continue as Finance/ })).toBeVisible();
-
-    await expect(async () => {
-      await page.getByRole("button", { name: `Forget account ${seedEmailFor("FINANCE")} on this browser` }).click();
-      await expect(page.getByRole("button", { name: /Continue as/ })).toHaveCount(0, { timeout: 4000 });
-    }).toPass({ timeout: 30_000 });
-    await expect(page.getByRole("link", { name: new RegExp(seedEmailFor("FINANCE")) })).toBeVisible();
   });
 
   test("Sign out revokes the session and does not bring the previous user back", async ({ page, context }) => {
@@ -193,13 +121,13 @@ test.describe("persistent login and switching accounts", () => {
   test("the quick-pick list can be cleared from the sign-in page", async ({ page }) => {
     await signIn(page, "MANAGEMENT");
     await page.getByRole("button", { name: "Profile menu" }).click();
-    await page.getByRole("button", { name: "Switch account" }).click();
-    await expect(page.getByRole("button", { name: /Continue as Management/ })).toBeVisible();
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByRole("link", { name: new RegExp(seedEmailFor("MANAGEMENT")) })).toBeVisible();
 
     await page.getByRole("button", { name: "Forget all accounts on this browser" }).click();
 
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByRole("heading", { name: "Switch account" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Recent accounts" })).toHaveCount(0);
   });
 
   test("a role cannot be gained from the URL: an address that names another role's page shows not-found", async ({ page }) => {

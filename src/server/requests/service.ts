@@ -15,7 +15,7 @@ import type { RequestType } from "@/domain/requests/types";
 import { closeSlaAlerts, notify, projectAudience, usersWithRole } from "@/server/notifications/service";
 import { OWNING_ROLE } from "@/domain/requests/types";
 import { jakartaDay } from "@/domain/requests/metrics";
-import { codePrefixFor, codePrefixForPic, nextProjectCode, nextRequestCode, recodeFor } from "./codes";
+import { codePrefixFor, codePrefixForPic, nextProjectCode, nextRequestCode, nextRequestCodeForPic, recodeFor } from "./codes";
 import { ensureCustomer } from "./master-data";
 import { REVISION_REQUESTED_KIND, REVISION_STARTED_KIND } from "@/domain/notifications/kinds";
 import { createProjectSchema, createRequestSchema, handoverSchema, phaseSchema, requestDatesSchema, revisionSchema, statusChangeSchema, stopFlowSchema } from "./schemas";
@@ -305,7 +305,12 @@ export async function handOverToPurchasing(
       if (again) return succeed({ ...again, created: false });
       if (source.project.trackStatus !== "ON_TRACK") return fail("PROJECT_NOT_ACTIVE");
 
-      const code = await nextRequestCode(tx, targetType, actor, new Date());
+      // SOA signs in with one shared account, so what SOA hands over is raised in the name of the SOA PIC who worked the BOQ (else the PIC who
+      // raised it): the code carries that PIC's initial, not the account's, and the request shows the PIC as who raised it, as every request raised
+      // for a PIC does. Without a PIC (or when Sales or an admin continues it) the person who clicks is the requester, as before.
+      const soaPicId = actor.role === "SOA" && source.type === "BOQ" ? (source.picId ?? source.raisedByPicId) : null;
+      const soaPic = soaPicId ? await tx.pic.findUnique({ where: { id: soaPicId }, select: { id: true, name: true, codePrefix: true } }) : null;
+      const code = soaPic ? await nextRequestCodeForPic(tx, targetType, soaPic, new Date()) : await nextRequestCode(tx, targetType, actor, new Date());
       // A handed-over request arrives In progress: the team does not have to accept it first.
       const request = await tx.request.create({
         data: {
@@ -319,6 +324,7 @@ export async function handOverToPurchasing(
           // Its own Needed by (or none): the date of the BOQ or RFQ was for that step. The SLA counts from this request's creation.
           requiredBy,
           requesterId: actor.id,
+          raisedByPicId: soaPic?.id ?? null,
           sourceRequestId: source.id,
         },
       });

@@ -99,12 +99,14 @@ describe("createProject", () => {
   });
 
   it("rejects roles without the permission, blank names, bad dates and deactivated users", async () => {
-    for (const role of ["PURCHASING", "FINANCE", "MANAGEMENT"] as const) {
+    for (const role of ["FINANCE", "MANAGEMENT"] as const) {
       const result = await createProject(db, await actorOf(role), { endUserCompany: "PT ABC", name: "X" });
       expect(result).toMatchObject({ ok: false, code: "FORBIDDEN" });
     }
-    // SOA register a project for a salesperson they choose, so one without a Sales PIC is invalid rather than forbidden.
-    expect(await createProject(db, await actorOf("SOA"), { endUserCompany: "PT ABC", name: "X" })).toMatchObject({ ok: false, code: "INVALID_INPUT" });
+    // SOA and Purchasing register a project for a salesperson they choose, so one without a Sales PIC is invalid rather than forbidden.
+    for (const role of ["SOA", "PURCHASING"] as const) {
+      expect(await createProject(db, await actorOf(role), { endUserCompany: "PT ABC", name: "X" })).toMatchObject({ ok: false, code: "INVALID_INPUT" });
+    }
     const sales = await actorOf("SALES");
     expect(await createProject(db, sales, { endUserCompany: "   ", name: "X" })).toMatchObject({ ok: false, code: "INVALID_INPUT" });
     expect(await createProject(db, sales, { endUserCompany: "A", name: "" })).toMatchObject({ ok: false, code: "INVALID_INPUT" });

@@ -214,9 +214,17 @@ export async function RequestList({
           {can(viewer.role, "requests.create") || can(viewer.role, "requests.create.external") || can(viewer.role, "requests.create.rfq") ? (
             // SOA raise a BOQ together with its project, in the one New project form (BOQ already chosen); Purchasing raise an RFQ for an existing project; others use the request form.
             can(viewer.role, "requests.create") || can(viewer.role, "requests.create.rfq") ? (
-              <Link href={type ? `${NEW_REQUEST_PATH}?type=${type}` : NEW_REQUEST_PATH} className={buttonVariants()}>
-                {can(viewer.role, "requests.create") ? "New request" : "New RFQ request"}
-              </Link>
+              <>
+                {/* Purchasing can also register the project first and raise its RFQ in the same form, as SOA do for a BOQ. */}
+                {!can(viewer.role, "requests.create") && can(viewer.role, "projects.create.external") ? (
+                  <Link href="/projects/new?type=RFQ" className={buttonVariants({ variant: "outline" })}>
+                    New project + RFQ
+                  </Link>
+                ) : null}
+                <Link href={type ? `${NEW_REQUEST_PATH}?type=${type}` : NEW_REQUEST_PATH} className={buttonVariants()}>
+                  {can(viewer.role, "requests.create") ? "New request" : "New RFQ request"}
+                </Link>
+              </>
             ) : (
               <Link href={`/projects/new?type=${type ?? "BOQ"}`} className={buttonVariants()}>
                 New project

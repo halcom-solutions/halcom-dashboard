@@ -117,17 +117,26 @@ export function salesActsOn(project: { sourceType: ProjectSourceType; salesOwner
 
 /**
  * May this role register a new project of this source? Internal Sales projects are Sales' (and admins'); a project from
- * another source is registered by SOA, and by admins.
+ * another source is registered by SOA, Purchasing and admins.
  */
 export function canCreateProjectWithSource(role: Role, sourceType: ProjectSourceType): boolean {
   if (sourceType === "OTHER") return can(role, "projects.create.external");
-  // An Internal Sales project is registered by a salesperson (for themselves) or by SOA, who pick the salesperson it belongs to.
+  // An Internal Sales project is registered by a salesperson (for themselves) or by SOA or Purchasing, who pick the salesperson it belongs to.
   return can(role, "projects.create") || can(role, "projects.assign-sales");
 }
 
 /**
- * May this role raise a request together with a project it is creating? Everything canRaiseRequestOn allows, and also a BOQ from SOA
- * for an Internal Sales project they register for a salesperson: the one form that creates the project and its BOQ.
+ * Must this role name the salesperson when it registers an Internal Sales project? Yes for a role that registers projects for
+ * salespeople but cannot own one itself (SOA, Purchasing); an administrator who leaves it empty owns the project.
+ */
+export function mustChooseSalesOwner(role: Role): boolean {
+  return can(role, "projects.assign-sales") && !can(role, "projects.create");
+}
+
+/**
+ * May this role raise a request together with a project it is creating? Everything canRaiseRequestOn allows (so an RFQ from Purchasing,
+ * whatever the source), and also a BOQ from SOA for an Internal Sales project they register for a salesperson: the one form that
+ * creates the project and its first request.
  */
 export function canRaiseWithNewProject(role: Role, type: "BOQ" | "RFQ" | "PO", sourceType: ProjectSourceType): boolean {
   return canRaiseRequestOn(role, type, sourceType) || (type === "BOQ" && can(role, "requests.create.external"));

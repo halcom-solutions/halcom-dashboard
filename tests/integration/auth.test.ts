@@ -98,25 +98,41 @@ describe("sessions", () => {
 });
 
 describe("session renewal and switching", () => {
-  it("renews a session in the last half of its lifetime, and only forward", async () => {
+  it("keeps a default session for 30 days after sign-in and never extends it (D-095)", async () => {
     const user = await makeUser("SALES");
     const start = new Date();
     const { token, expiresAt } = await createSession(db, user.id, start);
+
+    expect(expiresAt.getTime() - start.getTime()).toBe(30 * 24 * 60 * 60 * 1000);
+    await expect(renewSession(db, token, new Date(start.getTime() + SESSION_TTL_MS * 0.75))).resolves.toBeNull();
+    expect((await db.session.findFirstOrThrow({ where: { userId: user.id } })).expiresAt).toEqual(expiresAt);
+    await expect(findSessionUser(db, token, new Date(expiresAt.getTime() - 60_000))).resolves.toMatchObject({ id: user.id });
+    await expect(findSessionUser(db, token, new Date(expiresAt.getTime() + 1))).resolves.toBeNull();
+  });
+
+  it("renews a session in the last half of a shorter idle lifetime, and only forward", async () => {
+    // An environment may set a shorter idle lifetime than the absolute one; renewal then keeps a working person signed in.
+    const limits = { ttlMs: 12 * 60 * 60 * 1000, maxAgeMs: 7 * 24 * 60 * 60 * 1000 };
+    const user = await makeUser("SALES");
+    const start = new Date();
+    const { token } = await createSession(db, user.id, start);
+    const expiresAt = new Date(start.getTime() + limits.ttlMs);
+    await db.session.updateMany({ where: { userId: user.id }, data: { expiresAt } });
     const stored = () => db.session.findFirstOrThrow({ where: { userId: user.id } });
 
     // Fresh: nothing to renew, nothing written.
-    await expect(renewSession(db, token, new Date(start.getTime() + 60_000))).resolves.toBeNull();
+    await expect(renewSession(db, token, new Date(start.getTime() + 60_000), limits)).resolves.toBeNull();
     expect((await stored()).expiresAt).toEqual(expiresAt);
 
     // Past half of the lifetime: a full lifetime from now.
-    const later = new Date(start.getTime() + SESSION_TTL_MS * 0.75);
-    const renewed = await renewSession(db, token, later);
-    expect(renewed).toEqual(new Date(later.getTime() + SESSION_TTL_MS));
+    const later = new Date(start.getTime() + limits.ttlMs * 0.75);
+    const renewed = await renewSession(db, token, later, limits);
+    expect(renewed).toEqual(new Date(later.getTime() + limits.ttlMs));
     expect((await stored()).expiresAt).toEqual(renewed);
     await expect(findSessionUser(db, token, new Date(expiresAt.getTime() + 60_000))).resolves.toMatchObject({ id: user.id });
 
     // A late duplicate renewal cannot pull the expiry back.
-    await expect(renewSession(db, token, new Date(start.getTime() + SESSION_TTL_MS * 0.76))).resolves.toBeNull();
+    await expect(renewSession(db, token, new Date(start.getTime() + limits.ttlMs * 0.76), limits)).resolves.toBeNull();
     expect((await stored()).expiresAt).toEqual(renewed);
   });
 

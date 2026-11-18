@@ -49,9 +49,9 @@ both call `can()`; the menu is derived from it, and
 | `requests.handover` (hand a completed BOQ over to Purchasing as RFQ or PO) | ✔ | ✔ | – | ✔ | – | – | – |
 | `projects.edit.technical` (technical fields; each change logged with from and to) | ✔ | ✔ | – | ✔ | – | – | – |
 | `projects.post-update` (add current-action and next-action entries to the project feed) | ✔ | ✔ | – | ✔ | – | – | – |
-| `projects.create.external` (register a project whose sales is Other) | ✔ | ✔ | ✔ | ✔ | – | – | – |
+| `projects.create.external` (register a project whose sales is Other; Purchasing to raise its RFQ, D-094) | ✔ | ✔ | ✔ | ✔ | ✔ | – | – |
 | `projects.edit.source` (edit the sales name of an Other project; hand it to an internal Sales PIC) | ✔ | ✔ | ✔ | ✔ | – | – | – |
-| `projects.assign-sales` (SOA: register an Internal Sales project for a salesperson they pick) | ✔ | – | – | ✔ | – | – | – |
+| `projects.assign-sales` (SOA and Purchasing: register an Internal Sales project for a salesperson they pick) | ✔ | – | – | ✔ | ✔ | – | – |
 | `projects.import` (import projects from an Excel sheet) | ✔ | ✔ | – | ✔ | – | – | – |
 | `pics.manage` (create, rename, deactivate the PICs of SOA and Purchasing) | ✔ | ✔ | – | – | – | – | – |
 | `customers.view` (Customers page) | ✔ | ✔ | ✔ | – | – | – | – |
@@ -135,7 +135,7 @@ analytics (§18). They fill in when the project and ticket modules are built.
 | A-2 | **Confirmed 2026-10-17.** Admin may view every operational dashboard (read-only oversight) but not the superadmin dashboard. | Admin sees only its own dashboard. |
 | A-3 | **Confirmed 2026-10-17.** Only a superadmin manages admin accounts; admins add and manage the other operational users. | Admins may manage each other. |
 | A-4 | All roles may open the shared overview. Which figures it may show to Sales or Finance is undecided (brief §17: visibility). | Restrict by role or by project ownership. |
-| A-5 | **Changed by D-026.** Sessions last 12 hours idle, are renewed while the person works, and end at most 7 days after sign-in. | Other limits (env `SESSION_TTL_HOURS`, `SESSION_MAX_HOURS`), or SSO session lifetime. |
+| A-5 | **Changed by D-095.** A session lasts 30 days after sign-in (it was 12 hours idle and 7 days at most under D-026). | Other limits (env `SESSION_TTL_HOURS`, `SESSION_MAX_HOURS`), or SSO session lifetime. |
 | A-6 | Passwords need 8 to 128 characters; there is no complexity rule or rotation. | Company password policy, or SSO only. |
 | A-7 | Management is included as an optional read-only role. | Remove it. |
 | A-8 | The UI language is English, matching the brief. | Indonesian, or both. |

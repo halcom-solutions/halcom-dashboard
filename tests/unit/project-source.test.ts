@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { can } from "@/domain/access/permissions";
 import { ROLES } from "@/domain/access/roles";
-import { canCreateProjectWithSource, canRaiseRequestOn, canRaiseWithNewProject, normaliseSource, salesActsOn, salesSideName, sourceSummary } from "@/domain/projects/source";
+import { canCreateProjectWithSource, canRaiseRequestOn, canRaiseWithNewProject, mustChooseSalesOwner, normaliseSource, salesActsOn, salesSideName, sourceSummary } from "@/domain/projects/source";
 
 describe("normaliseSource", () => {
   it("treats a missing source as Internal Sales, as every project was before the source existed", () => {
@@ -55,13 +55,27 @@ describe("who may register a project and raise its request", () => {
     expect(canCreateProjectWithSource("SALES", "OTHER")).toBe(false);
     expect(canCreateProjectWithSource("SOA", "OTHER")).toBe(true);
     expect(canCreateProjectWithSource("SOA", "INTERNAL_SALES")).toBe(true);
-    expect(ROLES.filter((role) => can(role, "projects.assign-sales"))).toEqual(["SUPERADMIN", "SOA"]);
+    expect(ROLES.filter((role) => can(role, "projects.assign-sales"))).toEqual(["SUPERADMIN", "SOA", "PURCHASING"]);
     expect(canCreateProjectWithSource("ADMIN", "OTHER")).toBe(true);
     expect(canCreateProjectWithSource("ADMIN", "INTERNAL_SALES")).toBe(true);
   });
 
+  it("lets Purchasing register a project like SOA (Other, or Internal Sales for a salesperson it picks) to raise its RFQ, and nothing else with it", () => {
+    expect(canCreateProjectWithSource("PURCHASING", "OTHER")).toBe(true);
+    expect(canCreateProjectWithSource("PURCHASING", "INTERNAL_SALES")).toBe(true);
+    for (const source of ["OTHER", "INTERNAL_SALES"] as const) {
+      expect(canRaiseWithNewProject("PURCHASING", "RFQ", source)).toBe(true);
+      expect(canRaiseWithNewProject("PURCHASING", "BOQ", source)).toBe(false);
+      expect(canRaiseWithNewProject("PURCHASING", "PO", source)).toBe(false);
+    }
+    // It never owns the project: the salesperson is named, as SOA must; Sales and an administrator may own their own.
+    expect(ROLES.filter((role) => mustChooseSalesOwner(role))).toEqual(["SOA", "PURCHASING"]);
+    expect(can("PURCHASING", "projects.edit.source")).toBe(false);
+    expect(can("PURCHASING", "projects.edit.commercial")).toBe(false);
+  });
+
   it("keeps the read-only roles out", () => {
-    for (const role of ["PURCHASING", "FINANCE", "MANAGEMENT"] as const) {
+    for (const role of ["FINANCE", "MANAGEMENT"] as const) {
       expect(canCreateProjectWithSource(role, "OTHER")).toBe(false);
       expect(canCreateProjectWithSource(role, "INTERNAL_SALES")).toBe(false);
       expect(can(role, "projects.edit.source")).toBe(false);
@@ -86,10 +100,10 @@ describe("who may register a project and raise its request", () => {
     expect(canRaiseRequestOn("PURCHASING", "BOQ", "OTHER")).toBe(false);
   });
 
-  it("gives the source permissions to SOA, and administrators, never to Sales", () => {
+  it("gives the source permissions to SOA, and administrators, never to Sales; Purchasing only registers Other projects", () => {
     const holders = ROLES.filter((role) => can(role, "projects.edit.source"));
     expect(holders).toEqual(["SUPERADMIN", "ADMIN", "SOA"]);
-    expect(ROLES.filter((role) => can(role, "projects.create.external"))).toEqual(["SUPERADMIN", "ADMIN", "SOA"]);
+    expect(ROLES.filter((role) => can(role, "projects.create.external"))).toEqual(["SUPERADMIN", "ADMIN", "SOA", "PURCHASING"]);
   });
 
   it("lets any salesperson act on a project whose sales is Other, and only the owner on an internal one", () => {

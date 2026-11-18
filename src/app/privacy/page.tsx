@@ -39,8 +39,8 @@ export default function PrivacyPage() {
             <strong>Password:</strong> stored only as a salted scrypt hash, never in plain text and never shown or sent by e-mail.
           </li>
           <li>
-            <strong>Session:</strong> a random token in a cookie; only its hash is stored on the server. A session ends after 12 hours
-            without use, and after 7 days at the latest.
+            <strong>Session:</strong> a random token in a cookie; only its hash is stored on the server. You stay signed in on that
+            browser for 30 days after signing in, unless you sign out first.
           </li>
           <li>
             <strong>Failed sign-in counters:</strong> the e-mail that was typed and a SHA-256 hash of the network address, to slow down
@@ -62,12 +62,8 @@ export default function PrivacyPage() {
         </h2>
         <ul className="list-disc space-y-2 pl-5 text-sm">
           <li>
-            <strong>Session cookie:</strong> keeps you signed in. HttpOnly, Secure, SameSite=Lax.
-          </li>
-          <li>
-            <strong>Recent accounts</strong> (<code>recent_accounts</code>): the name, e-mail and role of staff accounts used on this
-            browser, so the sign-in page can fill in the e-mail (30 days at most). It holds no password, and each entry can be removed
-            from the sign-in page.
+            <strong>Session cookie:</strong> keeps you signed in for up to 30 days. HttpOnly, Secure, SameSite=Lax. It holds only a
+            random token, not your name, e-mail or password, and the browser keeps no list of accounts that signed in before.
           </li>
           <li>
             <strong>Theme choice:</strong> light or dark, kept in the browser&apos;s local storage.

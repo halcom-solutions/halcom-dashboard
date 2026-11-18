@@ -71,12 +71,16 @@ describe("Purchasing raises an RFQ for an existing project", () => {
     expect(mine.find((row) => row.code === result.value.code)?.requesterName).toBe("Test PURCHASING");
   });
 
-  it("raises only an RFQ: not a BOQ, not a PO, and not a project", async () => {
+  it("raises only an RFQ: not a BOQ, not a PO, and a new project only together with a named salesperson or as Other", async () => {
     const { purchasing, projectId } = await setup();
 
     expect(await createRequest(db, purchasing, { projectId, type: "BOQ", title: "x" })).toMatchObject({ ok: false, code: "FORBIDDEN" });
     expect(await createRequest(db, purchasing, { projectId, type: "PO", title: "x" })).toMatchObject({ ok: false, code: "FORBIDDEN" });
-    expect(await createProject(db, purchasing, { endUserCompany: "PT X", name: "Y" })).toMatchObject({ ok: false, code: "FORBIDDEN" });
+    // D-094: Purchasing registers a project like SOA, so an Internal Sales one needs its salesperson, and it never comes with a BOQ.
+    expect(await createProject(db, purchasing, { endUserCompany: "PT X", name: "Y" })).toMatchObject({ ok: false, code: "INVALID_INPUT" });
+    expect(
+      await createProject(db, purchasing, { endUserCompany: "PT X", name: "Y", sourceType: "OTHER", externalSourceName: "Partner", request: { type: "BOQ", description: null, requiredBy: null } }),
+    ).toMatchObject({ ok: false, code: "FORBIDDEN" });
   });
 
   it("works on a project from another source too, which has no Sales PIC to tell", async () => {

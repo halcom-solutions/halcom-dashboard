@@ -1107,3 +1107,18 @@ The preview of each template (filled with sample data) is no longer a long block
 - **Entering an account.** The superadmin's "Masuk sebagai" (formerly "Lihat sebagai") in the user's Edit window opens the account as before (same targets: active, not Admin or Superadmin; one hour, never renewed), but changes are no longer refused: the superadmin works with that account's permissions, and the first-sign-in password page does not get in the way.
 - **Audit.** What is changed inside the account is recorded with that account as the actor, as if the person had done it. `user.impersonation_started` and `user.impersonation_ended` (superadmin as actor) mark the window, so a change in that hour can be traced to the superadmin.
 - **Left in place.** The `device_credentials` table and its clean-up calls stay (no migration); nothing issues or reads a credential any more. The modules that did (`src/server/auth/device-*.ts`, `src/domain/access/device.ts`) and their tests are deleted.
+
+## D-094: Purchasing registers the project of an RFQ, as SOA do for a BOQ (2026-11-18)
+
+**Asked by the owner.** Amends D-026/D-031 (Purchasing raised an RFQ only for a project that already existed).
+
+- **Rights.** Purchasing gains `projects.create.external` and `projects.assign-sales`, the two SOA hold for registering a project: a project from another source (Other, with the external sales name), or an Internal Sales project for a salesperson Purchasing picks. Like SOA, Purchasing must name the salesperson (`mustChooseSalesOwner`: holds `projects.assign-sales` but not `projects.create`); it never owns a project, never edits the source afterwards (`projects.edit.source` stays SOA's) and never enters commercial details.
+- **One form.** `/projects/new?type=RFQ` creates the project and its RFQ in one transaction; for Purchasing the RFQ is chosen by default and it is the only request offered (no BOQ, no PO, as before). The salesperson named is told of the project and of the RFQ (the existing `project.assigned` and `request.created` notices).
+- **Where.** "New project + RFQ" next to "New RFQ request" on the RFQ and PO lists, and a link on the New request page. The Purchasing menu stays focused (no "New project" entry), as for Sales and SOA.
+
+## D-095: No list of accounts on the browser; a sign-in lasts 30 days (2026-11-18)
+
+**Asked by the owner.** Supersedes the "Recent accounts" part of D-093 and the session limits of D-026 (12 hours idle, 7 days at most).
+
+- **Recent accounts is gone.** The sign-in page lists no account and fills in nothing; the e-mail is always typed. `src/server/auth/recent-accounts.ts` and the "Remove from list" / "Forget all accounts" actions are deleted. A browser that still holds the old `recent_accounts` cookie loses it at its next sign-in or sign-out. What the browser keeps is the session cookie (an opaque token, HttpOnly) and the theme choice in local storage.
+- **Staying signed in.** `SESSION_TTL_HOURS` and `SESSION_MAX_HOURS` default to 720 (30 days) and accept 1 to 720: a person stays signed in on that browser for 30 days after signing in, used or not, unless they sign out; then the password is asked again. Sign-out, deactivation and a password change still end the session at once. A superadmin's entry into another account keeps its own one-hour limit (D-093).

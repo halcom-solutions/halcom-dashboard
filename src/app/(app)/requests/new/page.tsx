@@ -9,6 +9,7 @@ import { RequestForm } from "@/features/requests/forms";
 import { getDb } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
 import { can } from "@/domain/access/permissions";
+import { canCreateProjectWithSource } from "@/domain/projects/source";
 import { requireUser } from "@/server/auth/current-user";
 import { hasCompletedRfq, listActiveProjectOptions } from "@/server/requests/queries";
 
@@ -34,7 +35,9 @@ async function NewRequest({ searchParams }: Pick<PageProps<"/requests/new">, "se
   const wantedType = typeof query.type === "string" ? query.type.toUpperCase() : "";
   // A PO needs a completed RFQ on its project, so it is offered only for a project that has one.
   const poAllowed = wantedProject ? await hasCompletedRfq(getDb(), viewer, wantedProject.id) : false;
-  const types: readonly RequestType[] = raisesRfqOnly ? ["RFQ"] : !raisesAny ? ["BOQ"] : poAllowed ? REQUEST_TYPES : REQUEST_TYPES.filter((type) => type !== "PO");
+  // Purchasing may register the project first when it does not exist yet (the New project form, RFQ already chosen).
+  const createsProject = raisesRfqOnly && canCreateProjectWithSource(viewer.role, "OTHER");
+  const types: readonly RequestType[] =raisesRfqOnly ? ["RFQ"] : !raisesAny ? ["BOQ"] : poAllowed ? REQUEST_TYPES : REQUEST_TYPES.filter((type) => type !== "PO");
 
   return (
     <>
@@ -52,10 +55,24 @@ async function NewRequest({ searchParams }: Pick<PageProps<"/requests/new">, "se
             <h2>Request details</h2>
           </CardTitle>
           <CardDescription>
-            {raisesRfqOnly ? "Project dibuat oleh Sales atau SOA; pilih yang sudah ada. " : "Setelah disimpan, teks email (To, Cc, subjek, isi) tersedia untuk disalin ke Outlook. "}
+            {raisesRfqOnly ? (
+              createsProject ? (
+                <>
+                  Pilih project yang sudah ada. Belum ada projectnya?{" "}
+                  <Link href={`${PROJECTS_PATH}/new?type=RFQ`} className="underline underline-offset-4">
+                    Buat project baru beserta RFQ-nya
+                  </Link>
+                  .{" "}
+                </>
+              ) : (
+                "Project dibuat oleh Sales atau SOA; pilih yang sudah ada. "
+              )
+            ) : (
+              "Setelah disimpan, teks email (To, Cc, subjek, isi) tersedia untuk disalin ke Outlook. "
+            )}
             {projects.length === 0 ? (
               raisesRfqOnly ? (
-                "There is no active project yet. Ask Sales or SOA to register it first."
+                createsProject ? null : "There is no active project yet. Ask Sales or SOA to register it first."
               ) : (
                 <>
                   There is no active project yet:{" "}

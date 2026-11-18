@@ -8,9 +8,8 @@ import { lockedMessage } from "@/domain/access/login-throttle";
 import { getDb } from "@/lib/db";
 import { authenticate, normalizeEmail } from "@/server/auth/authenticate";
 import { clearFailures, clientAddress, lockState, purgeColdAttempts, recordFailure } from "@/server/auth/login-throttle";
-import { forgetAccount, forgetAllAccounts, rememberAccount } from "@/server/auth/recent-accounts";
 import { PASSWORD_CHANGE_PATH } from "@/features/navigation/links";
-import { clearSessionCookie, readSessionToken, setSessionCookie } from "@/server/auth/session-cookie";
+import { clearLegacyRecentAccountsCookie, clearSessionCookie, readSessionToken, setSessionCookie } from "@/server/auth/session-cookie";
 import { createSession, findSessionUser, revokeSession } from "@/server/auth/session-store";
 import { endImpersonation } from "@/server/users/impersonation";
 import { loginSchema } from "@/server/users/schemas";
@@ -67,7 +66,7 @@ export async function loginAction(_previous: LoginState, formData: FormData): Pr
 
   const { token, expiresAt } = await createSession(db, user.id);
   await setSessionCookie(token, expiresAt);
-  await rememberAccount({ email: user.email, name: user.name, role: user.role });
+  await clearLegacyRecentAccountsCookie();
   await db.auditEvent.create({ data: { actorId: user.id, action: "auth.login", entityType: "user", entityId: user.id } });
   forgetCachedPages();
   // Somebody else chose this password (a new account, a reset, the first superadmin): it is replaced before anything else opens (T-9).
@@ -98,18 +97,7 @@ export async function logoutAction(): Promise<void> {
     if (user) await db.auditEvent.create({ data: { actorId: user.id, action: "auth.logout", entityType: "user", entityId: user.id } });
   }
   await clearSessionCookie();
+  await clearLegacyRecentAccountsCookie();
   forgetCachedPages();
-  redirect("/login");
-}
-
-/** Removes one account from the quick-pick list of this browser (a shared workstation can clear what was left behind). */
-export async function forgetRecentAccountAction(formData: FormData): Promise<void> {
-  const email = formData.get("email");
-  if (typeof email === "string") await forgetAccount(email);
-  redirect("/login");
-}
-
-export async function forgetAllRecentAccountsAction(): Promise<void> {
-  await forgetAllAccounts();
   redirect("/login");
 }

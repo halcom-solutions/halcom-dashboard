@@ -205,14 +205,18 @@ describe("SOA register a project for a registered salesperson", () => {
     await expect(db.project.findUniqueOrThrow({ where: { id: created.value.id } })).resolves.toMatchObject({ sourceType: "OTHER", salesOwnerId: null });
   });
 
-  it("is for SOA only: other roles cannot pick the owner, and a role claimed by the session does not count", async () => {
-    const [sales, other, purchasing, soa] = await Promise.all([makeUser("SALES"), makeUser("SALES"), makeUser("PURCHASING"), makeUser("SOA")]);
+  it("is for SOA and Purchasing only (D-094): other roles cannot pick the owner, and a role claimed by the session does not count", async () => {
+    const [sales, other, purchasing, finance, soa] = await Promise.all([makeUser("SALES"), makeUser("SALES"), makeUser("PURCHASING"), makeUser("FINANCE"), makeUser("SOA")]);
 
     // A salesperson who names another salesperson still owns the project themselves.
     const own = await createProject(db, as(sales, "SALES"), { endUserCompany: company(), name: "Mine", salesOwnerId: other.id });
     if (!own.ok) throw new Error(own.message);
     await expect(db.project.findUniqueOrThrow({ where: { id: own.value.id } })).resolves.toMatchObject({ salesOwnerId: sales.id });
-    await expect(forSales(purchasing, sales.id)).resolves.toMatchObject({ ok: false, code: "FORBIDDEN" });
+    // Purchasing registers the project of an RFQ for the salesperson it names, as SOA do for a BOQ.
+    const forOther = await forSales(purchasing, other.id);
+    if (!forOther.ok) throw new Error(forOther.message);
+    await expect(db.project.findUniqueOrThrow({ where: { id: forOther.value.id } })).resolves.toMatchObject({ sourceType: "INTERNAL_SALES", salesOwnerId: other.id });
+    await expect(forSales(finance, sales.id)).resolves.toMatchObject({ ok: false, code: "FORBIDDEN" });
     // The stored role decides: this account is Sales, whatever the session claims.
     await expect(createProject(db, { id: sales.id, role: "SOA" }, { endUserCompany: company(), name: "Claimed", sourceType: "OTHER", externalSourceName: "x" })).resolves.toMatchObject({ ok: false, code: "FORBIDDEN" });
     void soa;

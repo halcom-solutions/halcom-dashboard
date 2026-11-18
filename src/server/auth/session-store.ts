@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { Role } from "@/domain/access/roles";
-import { renewedExpiry, SESSION_TTL_MS } from "./session-policy";
+import { renewedExpiry, SESSION_LIMITS, SESSION_TTL_MS, type SessionLimits } from "./session-policy";
 
 export { SESSION_MAX_AGE_MS, SESSION_TTL_MS } from "./session-policy";
 
@@ -51,7 +51,7 @@ export async function findSessionUser(
  * session was not extended: it is unknown, expired, belongs to a deactivated user, has plenty of time left, or reached its
  * absolute limit. The expiry only moves forward, so two renewals at once cannot shorten it.
  */
-export async function renewSession(db: Db, token: string, now: Date = new Date()): Promise<Date | null> {
+export async function renewSession(db: Db, token: string, now: Date = new Date(), limits: SessionLimits = SESSION_LIMITS): Promise<Date | null> {
   const tokenHash = hashSessionToken(token);
   const session = await db.session.findUnique({
     where: { tokenHash },
@@ -59,7 +59,7 @@ export async function renewSession(db: Db, token: string, now: Date = new Date()
   });
   // A view-as session is short and is never extended.
   if (!session || !session.user.isActive || session.impersonatorId) return null;
-  const next = renewedExpiry(session, now);
+  const next = renewedExpiry(session, now, limits);
   if (!next) return null;
   const { count } = await db.session.updateMany({ where: { tokenHash, expiresAt: { lt: next, gt: now } }, data: { expiresAt: next } });
   return count === 1 ? next : null;

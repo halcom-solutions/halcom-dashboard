@@ -23,10 +23,10 @@ test.describe("persistent login and switching accounts", () => {
 
     expect(cookie).toBeTruthy();
     expect(cookie).toMatchObject({ httpOnly: true, sameSite: "Lax", path: "/" });
-    // A persistent cookie (not a browser-session one) that lasts the configured twelve hours.
+    // A persistent cookie (not a browser-session one) that lasts the configured 30 days (D-095).
     const hoursLeft = (cookie!.expires - Date.now() / 1000) / 3600;
-    expect(hoursLeft).toBeGreaterThan(11);
-    expect(hoursLeft).toBeLessThanOrEqual(12.1);
+    expect(hoursLeft).toBeGreaterThan(30 * 24 - 1);
+    expect(hoursLeft).toBeLessThanOrEqual(30 * 24 + 0.1);
 
     // A "restart": a brand new browser context that only has the persistent cookies.
     const state = await page.context().storageState();
@@ -62,12 +62,12 @@ test.describe("persistent login and switching accounts", () => {
     await expect(page.getByRole("heading", { name: "Switch account" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Continue as/ })).toHaveCount(0);
 
-    // Picking a recent account only fills the email; a wrong password signs nobody in.
-    await page.getByRole("link", { name: new RegExp(seedEmailFor("SALES")) }).click();
-    await expect(page.getByLabel("Email")).toHaveValue(seedEmailFor("SALES"));
-    await expect(page.getByLabel("Password")).toBeFocused();
+    // The sign-in page lists no account and fills in nothing (D-095); a wrong password signs nobody in.
+    await expect(page.getByRole("heading", { name: "Recent accounts" })).toHaveCount(0);
+    await expect(page.getByLabel("Email")).toHaveValue("");
     // A click before the form is interactive reloads the page (and drops the typed text), so the attempt is repeated.
     await expect(async () => {
+      await page.getByLabel("Email").fill(seedEmailFor("SALES"));
       await page.getByLabel("Password").fill("not-the-password");
       await page.getByRole("button", { name: "Sign in" }).click();
       await expect(page.getByRole("alert").filter({ hasText: "Email atau kata sandi salah." })).toBeVisible({ timeout: 3000 });
@@ -118,16 +118,22 @@ test.describe("persistent login and switching accounts", () => {
     expect(await gone.json()).toEqual({ signedIn: false });
   });
 
-  test("the quick-pick list can be cleared from the sign-in page", async ({ page }) => {
+  test("the browser remembers no account: no list on the sign-in page, and an old list is removed at sign-in", async ({ page, context }) => {
+    // A browser that still holds the list from before D-095 loses it when someone signs in.
+    await page.goto("/login");
+    await context.addCookies([{ name: "recent_accounts", value: encodeURIComponent(JSON.stringify([{ email: seedEmailFor("SALES"), name: "Old", role: "SALES" }])), url: page.url() }]);
     await signIn(page, "MANAGEMENT");
+    expect((await context.cookies()).map((cookie) => cookie.name)).not.toContain("recent_accounts");
+    // The session cookie stays for 30 days.
+    const session = (await sessionCookie(page))!;
+    expect(session.expires * 1000 - Date.now()).toBeGreaterThan(29 * 24 * 60 * 60 * 1000);
+
     await page.getByRole("button", { name: "Profile menu" }).click();
     await page.getByRole("button", { name: "Sign out" }).click();
-    await expect(page.getByRole("link", { name: new RegExp(seedEmailFor("MANAGEMENT")) })).toBeVisible();
-
-    await page.getByRole("button", { name: "Forget all accounts on this browser" }).click();
-
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole("heading", { name: "Recent accounts" })).toHaveCount(0);
+    await expect(page.getByText(seedEmailFor("MANAGEMENT"))).toHaveCount(0);
+    expect((await context.cookies()).map((cookie) => cookie.name)).not.toContain("recent_accounts");
   });
 
   test("a role cannot be gained from the URL: an address that names another role's page shows not-found", async ({ page }) => {

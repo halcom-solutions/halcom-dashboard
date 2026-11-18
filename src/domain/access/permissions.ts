@@ -222,6 +222,10 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "requests.work.purchasing",
     // Purchasing raises an RFQ for an existing project (it is also shown to the project's Sales and SOA PICs); never a BOQ or a PO.
     "requests.create.rfq",
+    // Like SOA (for a BOQ), Purchasing registers the project an RFQ is for when it does not exist yet: from another source (Other), or
+    // Internal Sales for a salesperson they pick. It never owns a project and never enters the commercial details.
+    "projects.create.external",
+    "projects.assign-sales",
     // Purchasing fills in the Principal of a project from the Excel sheet (only that column), like SOA and Sales.
     "projects.edit.principal",
     "projects.bulk-update",

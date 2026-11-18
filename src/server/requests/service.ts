@@ -9,7 +9,7 @@ import { allowedTransitions, canHandOver, canTransition, isRetired, nextRequestT
 import { canContinueFlow, workPermission } from "@/domain/requests/access";
 import { parseCommercialValue } from "@/domain/projects/commercial";
 import { z } from "zod";
-import { canCreateProjectWithSource, canRaiseRequestOn, canRaiseWithNewProject, normaliseSource, salesActsOn } from "@/domain/projects/source";
+import { canCreateProjectWithSource, canRaiseRequestOn, canRaiseWithNewProject, mustChooseSalesOwner, normaliseSource, salesActsOn } from "@/domain/projects/source";
 import type { ProjectProgress, TrackStatus } from "@/domain/projects/progress";
 import type { RequestType } from "@/domain/requests/types";
 import { closeSlaAlerts, notify, projectAudience, usersWithRole } from "@/server/notifications/service";
@@ -137,9 +137,9 @@ export async function createProject(db: PrismaClient, claimedActor: Actor, input
   if (!canCreateProjectWithSource(claimedActor.role, sourceType)) return fail("FORBIDDEN");
   const { endUserCompany, name, description, targetDate, request, submissionKey } = parsed.data;
   if (request && !canRaiseWithNewProject(claimedActor.role, request.type, sourceType)) return fail("FORBIDDEN");
-  // SOA register an Internal Sales project for a salesperson they choose; nobody else picks the owner (a salesperson owns their own).
+  // SOA and Purchasing register an Internal Sales project for a salesperson they choose; a salesperson owns their own.
   const chosenOwner = parsed.data.salesOwnerId;
-  if (sourceType === "INTERNAL_SALES" && claimedActor.role === "SOA") {
+  if (sourceType === "INTERNAL_SALES" && mustChooseSalesOwner(claimedActor.role)) {
     if (!chosenOwner) return fail("INVALID_INPUT", "Pilih salesperson pemilik proyek ini.");
     if (!z.uuid().safeParse(chosenOwner).success) return fail("INVALID_INPUT", "Pilih salesperson dari daftar.");
   }
@@ -172,7 +172,7 @@ export async function createProject(db: PrismaClient, claimedActor: Actor, input
         if (again) return succeed({ ...again, created: false, requestCode: null });
       }
 
-      // An Internal Sales project belongs to whoever registers it, or, when SOA register it, to the salesperson they chose.
+      // An Internal Sales project belongs to whoever registers it, or, when SOA or Purchasing register it, to the salesperson they chose.
       let ownerId = actor.id;
       let assignedOwner: { id: string; name: string } | null = null;
       if (sourceType === "INTERNAL_SALES" && can(actor.role, "projects.assign-sales") && chosenOwner) {
@@ -180,7 +180,7 @@ export async function createProject(db: PrismaClient, claimedActor: Actor, input
         if (!owner?.isActive || owner.role !== "SALES") return fail("INVALID_INPUT", "Pilih salesperson aktif dari daftar.");
         ownerId = owner.id;
         assignedOwner = { id: owner.id, name: owner.name };
-      } else if (sourceType === "INTERNAL_SALES" && actor.role === "SOA") {
+      } else if (sourceType === "INTERNAL_SALES" && mustChooseSalesOwner(actor.role)) {
         return fail("INVALID_INPUT", "Pilih salesperson pemilik proyek ini.");
       }
 

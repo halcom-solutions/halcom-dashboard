@@ -410,23 +410,28 @@ export const GUIDE_NODES: readonly GuideNode[] = [
     next: "Purchasing, diberitahukan ke Sales dan SOA",
     col: 5,
     action:
-      "Ajukan RFQ sendiri untuk proyek yang sudah ada. Persempit daftar proyek berdasarkan Sales PIC atau SOA PIC; PIC proyek ditampilkan. RFQ masuk ke Purchasing dan juga diberitahukan ke Sales PIC dan SOA PIC proyek.",
-    input: "Proyek, ringkasan satu baris (wajib), detail, dan tanggal Needed by (opsional). Opsional juga Sales PIC dan SOA PIC untuk mempersempit daftar proyek.",
+      "Ajukan RFQ sendiri untuk proyek yang sudah ada. Persempit daftar proyek berdasarkan Sales PIC atau SOA PIC; PIC proyek ditampilkan. Bila proyeknya belum ada, daftarkan dulu (Internal Sales untuk salesperson yang dipilih, atau Other) dan RFQ-nya dibuat bersamaan, seperti SOA dengan BOQ. RFQ masuk ke Purchasing dan juga diberitahukan ke Sales PIC dan SOA PIC proyek.",
+    input: "Proyek, ringkasan satu baris (wajib), detail, dan tanggal Needed by (opsional). Opsional juga Sales PIC dan SOA PIC untuk mempersempit daftar proyek. Untuk proyek baru: End-user company, nama proyek, dan Sales PIC (Internal Sales) atau nama sumbernya (Other).",
     output:
-      "Request RFQ berstatus Submitted. Tim Purchasing, Sales PIC, dan SOA PIC proyek diberi tahu, dan RFQ tampil di Sales dashboard milik Sales PIC. Cara ini hanya berlaku untuk RFQ.",
+      "Request RFQ berstatus Submitted. Tim Purchasing, Sales PIC, dan SOA PIC proyek diberi tahu, dan RFQ tampil di Sales dashboard milik Sales PIC. Proyek baru juga diberitahukan ke salesperson yang dipilih. Cara ini hanya berlaku untuk RFQ.",
     recipient: "Purchasing; Sales PIC dan SOA PIC proyek diberi tahu",
     guide: {
-      where: "RFQ requests → New RFQ request",
-      prerequisites: ["Proyek sudah ada (didaftarkan Sales atau SOA) dan statusnya On Track."],
+      where: "RFQ requests → New RFQ request, atau New project + RFQ",
+      prerequisites: ["Proyek sudah ada dan statusnya On Track, atau didaftarkan sendiri lewat New project + RFQ."],
       steps: [
         "Buka RFQ requests lalu pilih New RFQ request.",
         "Opsional, pilih Sales PIC dan SOA PIC untuk mempersempit daftar, lalu pilih proyeknya. Sales PIC dan SOA PIC-nya muncul di sampingnya.",
         "Isi Summary serta spesifikasi, kuantitas, merek, dan batasan yang sudah diketahui, lalu pilih Create request.",
+        "Proyeknya belum ada? Pilih New project + RFQ: isi Project source (Internal Sales dengan Sales PIC, atau Other dengan nama sumbernya), End-user company dan nama proyek, lalu detail RFQ, dan pilih Create project and RFQ request.",
         "RFQ muncul di daftar RFQ Anda; Sales PIC melihatnya di Request center dan di dashboard-nya.",
       ],
       editable: ["Project", "Details", "Needed by"],
       handoff: "Sales PIC dan SOA PIC diberi tahu di aplikasi. Purchasing tidak mengirim email request: Sales PIC bisa menyalinnya dari request.",
-      links: [{ label: "RFQ requests", href: "/requests/rfq", anyOf: ["requests.view"] }, { label: "New request", href: "/requests/new", anyOf: ["requests.create.rfq", "requests.create"] }],
+      links: [
+        { label: "RFQ requests", href: "/requests/rfq", anyOf: ["requests.view"] },
+        { label: "New request", href: "/requests/new", anyOf: ["requests.create.rfq", "requests.create"] },
+        { label: "New project + RFQ", href: "/projects/new?type=RFQ", anyOf: ["projects.create.external"] },
+      ],
     },
   },
   {

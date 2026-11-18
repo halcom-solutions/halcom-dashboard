@@ -14,7 +14,8 @@ afterEach(() => clearPermissionOverrides());
 /** Finds the page file behind a route, trying a literal folder first and a dynamic one ([role], [code]...) second. */
 function pageFileFor(href: string): string | null {
   let dir = "src/app/(app)";
-  for (const segment of href.split("/").filter(Boolean)) {
+  // The query string (such as ?type=RFQ) does not choose the page.
+  for (const segment of (href.split("?")[0] ?? "").split("/").filter(Boolean)) {
     if (existsSync(`${dir}/${segment}`)) {
       dir = `${dir}/${segment}`;
       continue;
@@ -154,7 +155,10 @@ describe("what the guide offers to whom", () => {
   it("links only to pages the account may open", () => {
     expect(hrefs("sales.create", "SALES")).toContain("/projects/new");
     expect(hrefs("sales.create", "FINANCE")).not.toContain("/projects/new");
-    expect(hrefs("sales.create", "PURCHASING")).not.toContain("/projects/new");
+    expect(hrefs("sales.create", "MANAGEMENT")).not.toContain("/projects/new");
+    // Purchasing registers the project of an RFQ (D-094), so its own step offers the form with the RFQ chosen.
+    expect(hrefs("pur.raise", "PURCHASING")).toContain("/projects/new?type=RFQ");
+    expect(hrefs("pur.raise", "FINANCE")).not.toContain("/projects/new?type=RFQ");
     expect(hrefs("fin.check", "FINANCE")).toContain("/finance/crosscheck");
     expect(hrefs("fin.check", "SALES")).not.toContain("/finance/crosscheck");
     expect(hrefs("soa.handoff", "SOA")).toContain("/handoffs");

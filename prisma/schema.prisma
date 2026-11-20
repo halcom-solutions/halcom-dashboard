@@ -46,6 +46,8 @@ model User {
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   pic               Pic?      @relation("UserPic", fields: [picId], references: [id], onDelete: Restrict)
+  // The shared PICs this account works with others (D-100): a request handed to one is theirs as much as their partners'.
+  sharedPics        PicMember[] @relation("PicMemberUser")
   sessions          Session[] @relation("SessionUser")
   impersonations    Session[] @relation("SessionImpersonator")
   deviceCredentials DeviceCredential[]
@@ -546,10 +548,27 @@ model Pic {
   soaProjects      Project[]              @relation("ProjectSoaPic")
   purchasingProjects Project[]            @relation("ProjectPurchasingPicRef")
   account          User?                  @relation("UserPic")
+  // A shared PIC (D-100) is worked by these accounts together; it then has no account of its own.
+  members          PicMember[]
 
   @@unique([team, nameKey])
   @@index([team, isActive])
   @@map("pics")
+}
+
+// The accounts that work a shared PIC together (D-100), such as "Soraya & Gita": a request handed to that PIC is every member's work,
+// shows in each one's "Pekerjaan saya", and every member is told when it is handed over. A PIC with members has no own account.
+model PicMember {
+  picId     String   @map("pic_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  pic  Pic  @relation(fields: [picId], references: [id], onDelete: Restrict)
+  user User @relation("PicMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([picId, userId])
+  @@index([userId])
+  @@map("pic_members")
 }
 
 // Who a request was handed to and by whom, one row per change. Append-only (the migration installs triggers), and a PIC row is never

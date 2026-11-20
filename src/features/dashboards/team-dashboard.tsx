@@ -50,23 +50,35 @@ export async function TeamDashboard({ viewer, team }: { viewer: SessionUser; tea
   // The technical team works on projects first: their numbers lead and the requests come below (Purchasing has only requests).
   const analytics = team === "SOA" ? await getPipelineAnalytics(getDb(), viewer) : null;
 
-  // A PIC with their own account (D-097) sees their own share first; the team's numbers follow unchanged.
+  // A PIC with their own account (D-097) sees their own share first, then each shared PIC they work with others (D-100); the team's
+  // numbers follow unchanged. A shared PIC's requests are counted once, under that PIC, never added to a member's own.
   const ownPic = viewer.pic && viewer.role === team ? viewer.pic : null;
-  const own = ownPic ? summary.byPic.find((row) => row.picId === ownPic.id) : undefined;
-  const ownLoad = ownPic ? metrics.workload.find((row) => row.assigneeId === ownPic.id) : undefined;
+  const sharedPics = viewer.role === team ? (viewer.sharedPics ?? []) : [];
   const ownProjects = ownPic && team === "SOA" ? await countPicProjects(getDb(), viewer, ownPic.id) : null;
-  const mine = ownPic ? (
-    <section aria-label="My work" className="mb-6">
-      <h2 className="mb-2 text-sm font-medium">Pekerjaan saya ({ownPic.name})</h2>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        {ownProjects !== null ? <StatTile label="My projects" value={ownProjects} href={`${PROJECTS_PATH}?soapic=${ownPic.id}`} note="Project dengan Anda sebagai Technical PIC (SOA)" /> : null}
-        <StatTile label={`My ${copy.noun}`} value={own?.total ?? 0} href={to(`assignee=${ownPic.id}`)} note="Semua request yang diserahkan kepada Anda" />
-        <StatTile label="My open" value={ownLoad?.open ?? 0} href={to(`assignee=${ownPic.id}&status=open`)} note="Belum Completed atau Cancelled" />
-        <StatTile label="My on going" value={own?.onGoing ?? 0} href={to(`assignee=${ownPic.id}&status=IN_PROGRESS`)} note="Sedang In progress" />
-        <StatTile label="My overdue" value={ownLoad?.overdue ?? 0} href={to(`assignee=${ownPic.id}&sla=overdue`)} note="Melewati batas SLA" />
-      </div>
-    </section>
-  ) : null;
+  const workOf = (pic: { id: string; name: string }, shared: boolean) => {
+    const done = summary.byPic.find((row) => row.picId === pic.id);
+    const load = metrics.workload.find((row) => row.assigneeId === pic.id);
+    const my = shared ? "Bersama:" : "My";
+    return (
+      <section key={pic.id} aria-label={shared ? `Shared work ${pic.name}` : "My work"} className="mb-6">
+        <h2 className="mb-2 text-sm font-medium">{shared ? `PIC bersama (${pic.name})` : `Pekerjaan saya (${pic.name})`}</h2>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          {!shared && ownProjects !== null ? <StatTile label="My projects" value={ownProjects} href={`${PROJECTS_PATH}?soapic=${pic.id}`} note="Project dengan Anda sebagai Technical PIC (SOA)" /> : null}
+          <StatTile label={`${my} ${copy.noun}`} value={done?.total ?? 0} href={to(`assignee=${pic.id}`)} note={shared ? `Request untuk ${pic.name}, dikerjakan bersama` : "Semua request yang diserahkan kepada Anda"} />
+          <StatTile label={`${my} open`} value={load?.open ?? 0} href={to(`assignee=${pic.id}&status=open`)} note="Belum Completed atau Cancelled" />
+          <StatTile label={`${my} on going`} value={done?.onGoing ?? 0} href={to(`assignee=${pic.id}&status=IN_PROGRESS`)} note="Sedang In progress" />
+          <StatTile label={`${my} overdue`} value={load?.overdue ?? 0} href={to(`assignee=${pic.id}&sla=overdue`)} note="Melewati batas SLA" />
+        </div>
+      </section>
+    );
+  };
+  const mine =
+    ownPic || sharedPics.length > 0 ? (
+      <>
+        {ownPic ? workOf(ownPic, false) : null}
+        {sharedPics.map((pic) => workOf(pic, true))}
+      </>
+    ) : null;
 
   const requests = (
     <>

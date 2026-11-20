@@ -8,7 +8,7 @@ export { SESSION_MAX_AGE_MS, SESSION_TTL_MS } from "./session-policy";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
-export type SessionUser = { id: string; name: string; email: string; role: Role; /** Set while a superadmin is viewing as this account: the superadmin. */ impersonatedBy?: { id: string; name: string }; /** Read from the database on every request; the sign-in results do not carry it. */ alsoManagement?: boolean; mustChangePassword: boolean; /** The PIC this account is (D-097), while the link still counts. */ pic?: { id: string; name: string } | null };
+export type SessionUser = { id: string; name: string; email: string; role: Role; /** Set while a superadmin is viewing as this account: the superadmin. */ impersonatedBy?: { id: string; name: string }; /** Read from the database on every request; the sign-in results do not carry it. */ alsoManagement?: boolean; mustChangePassword: boolean; /** The PIC this account is (D-097), while the link still counts. */ pic?: { id: string; name: string } | null; /** The shared PICs this account works with others (D-100), while they count. */ sharedPics?: { id: string; name: string }[] };
 
 /** Only this hash is stored, so a database leak does not expose usable cookies. */
 export function hashSessionToken(token: string): string {
@@ -38,7 +38,7 @@ export async function findSessionUser(
 ): Promise<SessionUser | null> {
   const session = await db.session.findUnique({
     where: { tokenHash: hashSessionToken(token) },
-    select: { expiresAt: true, impersonator: { select: { id: true, name: true, isActive: true } }, user: { select: { id: true, name: true, email: true, role: true, alsoManagement: true, isActive: true, mustChangePassword: true, pic: { select: { id: true, name: true, team: true, isActive: true } } } } },
+    select: { expiresAt: true, impersonator: { select: { id: true, name: true, isActive: true } }, user: { select: { id: true, name: true, email: true, role: true, alsoManagement: true, isActive: true, mustChangePassword: true, pic: { select: { id: true, name: true, team: true, isActive: true } }, sharedPics: { select: { pic: { select: { id: true, name: true, team: true, isActive: true } } } } } } },
   });
   if (!session || session.expiresAt <= now || !session.user.isActive) return null;
   // The superadmin who opened a view-as session must still be an active account.
@@ -46,7 +46,12 @@ export async function findSessionUser(
   const { id, name, email, role, alsoManagement, mustChangePassword } = session.user;
   const linked = session.user.pic;
   const pic = linked && linked.isActive && canLinkPicAccount(linked.team, role) ? { id: linked.id, name: linked.name } : null;
-  return { id, name, email, role, alsoManagement, mustChangePassword, pic, ...(session.impersonator ? { impersonatedBy: { id: session.impersonator.id, name: session.impersonator.name } } : {}) };
+  const sharedPics = session.user.sharedPics
+    .map((member) => member.pic)
+    .filter((shared) => shared.isActive && canLinkPicAccount(shared.team, role))
+    .map((shared) => ({ id: shared.id, name: shared.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { id, name, email, role, alsoManagement, mustChangePassword, pic, sharedPics, ...(session.impersonator ? { impersonatedBy: { id: session.impersonator.id, name: session.impersonator.name } } : {}) };
 }
 
 /**

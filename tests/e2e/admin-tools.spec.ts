@@ -361,7 +361,7 @@ test.describe("importing projects from Excel, paging the table and drilling down
   });
 });
 
-test("an SOA PIC gets their own account, sees their own work on the SOA dashboard, and Purchasing PICs stay on the shared login (D-097)", async ({ page }) => {
+test("an SOA PIC gets their own account, sees their own work on the SOA dashboard, and Purchasing PICs can have accounts or be shared (D-097, D-100)", async ({ page }) => {
   test.setTimeout(150_000);
   const id = tag();
   const email = `e2e-soa-pic-${id}@example.invalid`;
@@ -383,8 +383,20 @@ test("an SOA PIC gets their own account, sees their own work on the SOA dashboar
     await soaCard.getByRole("button", { name: "Add PIC" }).click();
     await expect(soaCard.getByLabel(`Name of ${picName}`)).toBeVisible({ timeout: 4000 });
   }).toPass({ timeout: 30_000 });
-  // Only SOA PICs can be given an account in the trial.
-  await expect(card(page, "Purchasing PICs").getByLabel(/^Account of /)).toHaveCount(0);
+  // Purchasing PICs can be given an account too, or be shared by several (D-100); a shared PIC needs at least two accounts.
+  const purchasingCard = card(page, "Purchasing PICs");
+  const sharedName = `Pair ${id}`;
+  await expect(async () => {
+    await purchasingCard.getByLabel("New Purchasing PIC").fill(sharedName);
+    await purchasingCard.getByRole("button", { name: "Add PIC" }).click();
+    await expect(purchasingCard.getByLabel(`Name of ${sharedName}`)).toBeVisible({ timeout: 4000 });
+  }).toPass({ timeout: 30_000 });
+  const pair = purchasingCard.getByRole("listitem").filter({ has: page.getByLabel(`Name of ${sharedName}`) });
+  await expect(pair.getByLabel(`Account of ${sharedName}`)).toBeVisible();
+  await pair.getByText("PIC bersama (dikerjakan beberapa akun)").click();
+  await pair.getByRole("checkbox").first().check();
+  await pair.getByRole("button", { name: `Save shared accounts of ${sharedName}` }).click();
+  await expect(pair.getByRole("alert").filter({ hasText: "paling sedikit dua akun" })).toBeVisible();
 
   // The success message is a toast; the saved link shows as the chosen account once the page is loaded again.
   const account = soaCard.getByLabel(`Account of ${picName}`);

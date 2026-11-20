@@ -52,6 +52,7 @@ describe("sessions", () => {
       alsoManagement: false,
       mustChangePassword: false,
       pic: null,
+      sharedPics: [],
     });
     const stored = await db.session.findMany({ where: { userId: user.id } });
     expect(stored).toHaveLength(1);

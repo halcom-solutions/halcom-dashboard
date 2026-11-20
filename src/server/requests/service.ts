@@ -99,8 +99,10 @@ type NewRequest = { type: RequestType; title: string; description: string | null
 /** Inserts a request with its first status-history row and audit event, inside the caller's transaction. */
 async function insertRequest(tx: Tx, actor: StoredActor, projectId: string, request: NewRequest, submissionKey: string | null) {
   // A PIC with their own account (D-097) raises in their PIC's name, as a request raised for that PIC through the shared login is:
-  // the code carries the PIC's letter (BOQ-A-260001) and the request names the PIC as who raised it.
-  const code = actor.pic ? await nextRequestCodeForPic(tx, request.type, actor.pic, new Date()) : await nextRequestCode(tx, request.type, actor, new Date());
+  // the code carries the PIC's letter (BOQ-A-260001) and the request names the PIC as who raised it. Only SOA raise in a PIC's name
+  // ("Requested by" is an SOA PIC); a Purchasing account (D-100) raises an RFQ as itself, with its own letter, as before.
+  const raisingPic = actor.role === "SOA" ? actor.pic : null;
+  const code = raisingPic ? await nextRequestCodeForPic(tx, request.type, raisingPic, new Date()) : await nextRequestCode(tx, request.type, actor, new Date());
   const created = await tx.request.create({
     data: {
       code,
@@ -110,7 +112,7 @@ async function insertRequest(tx: Tx, actor: StoredActor, projectId: string, requ
       description: request.description ?? "",
       requiredBy: request.requiredBy,
       requesterId: actor.id,
-      raisedByPicId: actor.pic?.id ?? null,
+      raisedByPicId: raisingPic?.id ?? null,
       submissionKey,
     },
   });

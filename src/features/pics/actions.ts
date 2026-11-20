@@ -5,7 +5,7 @@ import type { FormState } from "@/components/ui/form-status";
 import { PICS_PATH } from "@/features/navigation/links";
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/server/auth/current-user";
-import { createPic, linkPicAccount, updatePic } from "@/server/pics/service";
+import { createPic, linkPicAccount, setPicMembers, updatePic } from "@/server/pics/service";
 
 const text = (formData: FormData, name: string) => {
   const value = formData.get(name);
@@ -38,6 +38,17 @@ export async function linkPicAccountAction(_previous: FormState, formData: FormD
   revalidatePath(PICS_PATH);
   const { picName, account } = result.value;
   return { ok: true, message: account ? `Akun ${account.name} sekarang menjadi PIC ${picName}.` : `${picName} tidak lagi punya akun sendiri; pekerjaannya kembali ke akun bersama.` };
+}
+
+/** Makes a PIC shared by several accounts, or ordinary again with none ticked (D-100). */
+export async function setPicMembersAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser();
+  const userIds = formData.getAll("userIds").filter((value): value is string => typeof value === "string");
+  const result = await setPicMembers(getDb(), { id: user.id, role: user.role }, { picId: text(formData, "picId"), userIds });
+  if (!result.ok) return { ok: false, message: result.message };
+  revalidatePath(PICS_PATH);
+  const { picName, members } = result.value;
+  return { ok: true, message: members.length > 0 ? `${picName} sekarang dikerjakan bersama oleh ${members.map((member) => member.name).join(" dan ")}.` : `${picName} bukan PIC bersama lagi.` };
 }
 
 /** Turns a PIC on or off. Requests and history that mention it are kept. */

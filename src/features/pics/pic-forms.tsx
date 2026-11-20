@@ -6,7 +6,7 @@ import { FormStatus, type FormState } from "@/components/ui/form-status";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { PIC_NAME_MAX_LENGTH, PIC_TEAM_LABELS, type PicTeam } from "@/domain/pics/teams";
-import { createPicAction, linkPicAccountAction, renamePicAction, setPicActiveAction } from "./actions";
+import { createPicAction, linkPicAccountAction, renamePicAction, setPicActiveAction, setPicMembersAction } from "./actions";
 
 type AccountOption = { id: string; name: string; email: string };
 
@@ -39,6 +39,41 @@ export function PicAccountForm({ picId, picName, current, choices }: { picId: st
       </div>
       <FormStatus state={state} />
     </form>
+  );
+}
+
+/**
+ * A shared PIC (D-100), such as "Soraya & Gita": the ticked accounts work it together. A request handed to it is each one's work, shows
+ * in each one's "Pekerjaan saya", and all of them are told. Nothing ticked makes it an ordinary PIC again.
+ */
+export function PicMembersForm({ picId, picName, members, choices }: { picId: string; picName: string; members: AccountOption[]; choices: AccountOption[] }) {
+  const [state, formAction, pending] = useActionState<FormState, FormData>(setPicMembersAction, null);
+  const ticked = new Set(members.map((member) => member.id));
+  const options = [...members, ...choices.filter((choice) => !ticked.has(choice.id))];
+  return (
+    <details open={members.length > 0} className="text-xs">
+      <summary className="cursor-pointer text-muted-foreground">
+        PIC bersama{members.length > 0 ? `: ${members.map((member) => member.name).join(" & ")}` : " (dikerjakan beberapa akun)"}
+      </summary>
+      <form key={members.map((member) => member.id).join()} action={formAction} className="mt-2 flex flex-col gap-2">
+        <input type="hidden" name="picId" value={picId} />
+        <fieldset className="flex flex-wrap gap-x-4 gap-y-1">
+          <legend className="sr-only">Akun yang mengerjakan {picName} bersama</legend>
+          {options.map((option) => (
+            <label key={option.id} className="flex items-center gap-1.5 text-sm">
+              <input type="checkbox" name="userIds" value={option.id} defaultChecked={ticked.has(option.id)} className="size-4 accent-primary" />
+              {option.name} <span className="text-muted-foreground">({option.email})</span>
+            </label>
+          ))}
+        </fieldset>
+        <div>
+          <Button type="submit" size="sm" variant="outline" disabled={pending} aria-label={`Save shared accounts of ${picName}`}>
+            {pending ? "Saving…" : "Save PIC bersama"}
+          </Button>
+        </div>
+        <FormStatus state={state} />
+      </form>
+    </details>
   );
 }
 

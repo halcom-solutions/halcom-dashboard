@@ -1148,3 +1148,12 @@ Asked by the product owner. (D-097 and D-098 are taken on other branches.)
 - **BOQ / RFQ filter.** A dropdown on the Projects list: "Sudah BOQ", "Sudah RFQ", "Sudah BOQ dan RFQ", "Belum BOQ maupun RFQ" (`requests=` in the URL). Any BOQ or RFQ counts, whatever its status; a deleted request does not.
 - **Dropdowns apply at once.** Picking a value in any filter dropdown reloads the list; the button (now "Cari") is only for the search text, which also applies on Enter.
 - **Edit button.** The Edit button of the name and description on the Overview is blue (the primary button).
+
+## D-100: Purchasing PICs get their own accounts, and a PIC can be shared by several accounts (2026-11-21)
+
+**Asked by the owner.** Follows D-097 (SOA PICs with their own accounts). Gita and Soraya now have Purchasing accounts; requests were also handed to "Soraya & Gita" together, and the owner wants such a request to be worked by both.
+
+- **Purchasing joins.** `PIC_ACCOUNT_TEAMS` is SOA and Purchasing. A Purchasing PIC is linked to a Purchasing account on `/admin/pics` (Akun sendiri), and the requests that already name it become that account's work, as for SOA. A Purchasing account raises an RFQ as itself (its own code letter, no `raised_by_pic_id`): raising in a PIC's name stays an SOA thing.
+- **Shared PIC.** New table `pic_members` (migration `20261121100000_shared_pic_members`, additive): the accounts that work one PIC together. On `/admin/pics` a PIC has "PIC bersama": tick two or more accounts of the team's role (they may also be their own PIC). A PIC is one person's (Akun sendiri) or several people's (PIC bersama), never both. Changes are audited (`pic.members_changed`).
+- **What sharing does.** The requests keep naming the shared PIC, so nothing is rewritten. Each member sees it on their dashboard under "PIC bersama (name)" next to "Pekerjaan saya", every member is told when a request is handed to it (except the one who did it), and any member works it (a request is worked by the team's role, as before). The workload counts it once, under the shared PIC.
+- **No SQL by hand.** The migration runs in the normal deploy (`prisma migrate deploy` in `deploy.sh`); the links and members are set on `/admin/pics`.

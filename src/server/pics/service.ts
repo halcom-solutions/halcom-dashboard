@@ -4,7 +4,7 @@ import { can } from "@/domain/access/permissions";
 import type { Role } from "@/domain/access/roles";
 import { cleanName, nameKey } from "@/domain/projects/pipeline";
 import { PIC_NAME_MAX_LENGTH, PIC_TEAM_LABELS, PIC_TEAMS, picTeamOf, type PicOption, type PicTeam } from "@/domain/pics/teams";
-import { canLinkPicAccount, PIC_ACCOUNT_TEAMS } from "@/domain/pics/accounts";
+import { canLinkPicAccount, MAX_PIC_MEMBERS, PIC_ACCOUNT_TEAMS } from "@/domain/pics/accounts";
 import { workPermission } from "@/domain/requests/access";
 import { notify } from "@/server/notifications/service";
 import type { RequestType } from "@/domain/requests/types";
@@ -33,7 +33,7 @@ const isUniqueViolation = (error: unknown) => error instanceof Prisma.PrismaClie
 
 export type PicAccount = { id: string; name: string; email: string; isActive: boolean };
 
-export type PicRecord = { id: string; team: PicTeam; name: string; isActive: boolean; openRequests: number; totalRequests: number; account: PicAccount | null };
+export type PicRecord = { id: string; team: PicTeam; name: string; isActive: boolean; openRequests: number; totalRequests: number; account: PicAccount | null; /** The accounts of a shared PIC (D-100). */ members: PicAccount[] };
 
 /** Every PIC of both teams, active first, with how many requests each one holds and its own account, if it has one. For the administrator who keeps the list. */
 export async function listPics(db: PrismaClient, viewer: Actor): Promise<PicRecord[]> {
@@ -47,6 +47,7 @@ export async function listPics(db: PrismaClient, viewer: Actor): Promise<PicReco
       isActive: true,
       requests: { where: { deletedAt: null }, select: { status: true } },
       account: { select: { id: true, name: true, email: true, isActive: true } },
+      members: { orderBy: { user: { name: "asc" } }, select: { user: { select: { id: true, name: true, email: true, isActive: true } } } },
     },
   });
   return rows.map((row) => ({
@@ -57,6 +58,7 @@ export async function listPics(db: PrismaClient, viewer: Actor): Promise<PicReco
     openRequests: row.requests.filter((request) => request.status !== "COMPLETED" && request.status !== "CANCELLED").length,
     totalRequests: row.requests.length,
     account: row.account,
+    members: row.members.map((member) => member.user),
   }));
 }
 
@@ -65,6 +67,67 @@ export async function listLinkableAccounts(db: PrismaClient, viewer: Actor, team
   if (!can(viewer.role, "pics.manage")) throw new Error("Forbidden: missing permission for this query.");
   if (!PIC_ACCOUNT_TEAMS.includes(team)) return [];
   return db.user.findMany({ where: { role: team, isActive: true, picId: null }, orderBy: { name: "asc" }, select: { id: true, name: true, email: true, isActive: true } });
+}
+
+/** The accounts that can work a shared PIC of this team together (D-100): every active account of the team's role, own PIC or not. */
+export async function listTeamAccounts(db: PrismaClient, viewer: Actor, team: PicTeam): Promise<PicAccount[]> {
+  if (!can(viewer.role, "pics.manage")) throw new Error("Forbidden: missing permission for this query.");
+  if (!PIC_ACCOUNT_TEAMS.includes(team)) return [];
+  return db.user.findMany({ where: { role: team, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, email: true, isActive: true } });
+}
+
+/**
+ * Makes a PIC shared (D-100): the accounts given here work it together, so a request handed to it is each one's work, shows in each
+ * one's "Pekerjaan saya" and is announced to all of them. Any of them may work it (a request is worked by the team's role anyway).
+ * An empty list makes it an ordinary PIC again. A shared PIC has no own account; its members are active accounts of the team's role.
+ */
+export async function setPicMembers(db: PrismaClient, claimedActor: Actor, input: unknown): Promise<PicResult<{ picName: string; members: { id: string; name: string }[] }>> {
+  const parsed = z.object({ picId: z.uuid(), userIds: z.array(z.uuid()).max(MAX_PIC_MEMBERS, `Paling banyak ${MAX_PIC_MEMBERS} akun.`) }).strict().safeParse(input);
+  if (!parsed.success) return fail("INVALID_INPUT", parsed.error.issues[0]?.message ?? "Pilih akun yang valid.");
+  if (!can(claimedActor.role, "pics.manage")) return fail("FORBIDDEN", FORBIDDEN);
+  const { picId } = parsed.data;
+  const wanted = [...new Set(parsed.data.userIds)];
+
+  return db.$transaction(async (tx): Promise<PicResult<{ picName: string; members: { id: string; name: string }[] }>> => {
+    const actor = await loadActor(tx, claimedActor);
+    if (!actor || !can(actor.role, "pics.manage")) return fail("FORBIDDEN", FORBIDDEN);
+    await tx.$executeRaw`SELECT id FROM pics WHERE id = ${picId}::uuid FOR UPDATE`;
+    const pic = await tx.pic.findUnique({
+      where: { id: picId },
+      select: { id: true, name: true, team: true, isActive: true, account: { select: { id: true } }, members: { select: { user: { select: { id: true, name: true, email: true } } } } },
+    });
+    if (!pic) return fail("NOT_FOUND", "PIC tidak ditemukan.");
+    const before = pic.members.map((member) => member.user);
+    if (wanted.length > 0) {
+      if (!PIC_ACCOUNT_TEAMS.includes(pic.team)) return fail("INVALID_INPUT", `PIC ${PIC_TEAM_LABELS[pic.team]} belum memakai akun sendiri; tim ini masih memakai akun bersama.`);
+      if (!pic.isActive) return fail("INVALID_INPUT", `${pic.name} tidak aktif. Aktifkan dulu sebelum memberinya akun.`);
+      if (pic.account) return fail("INVALID_INPUT", `${pic.name} sudah punya akun sendiri. Lepas dulu akun sendirinya sebelum menjadikannya PIC bersama.`);
+      if (wanted.length < 2) return fail("INVALID_INPUT", "PIC bersama dikerjakan paling sedikit dua akun. Untuk satu akun, pakai Akun sendiri.");
+    }
+    const users = await tx.user.findMany({ where: { id: { in: wanted } }, select: { id: true, name: true, email: true, role: true, isActive: true } });
+    if (users.length !== wanted.length) return fail("NOT_FOUND", "Akun tidak ditemukan.");
+    for (const user of users) {
+      if (!user.isActive) return fail("INVALID_INPUT", `${user.email} tidak aktif.`);
+      if (!canLinkPicAccount(pic.team, user.role)) return fail("INVALID_INPUT", `Akun PIC ${PIC_TEAM_LABELS[pic.team]} harus berperan ${PIC_TEAM_LABELS[pic.team]}.`);
+    }
+    const same = before.length === wanted.length && before.every((user) => wanted.includes(user.id));
+    const members = users.sort((a, b) => a.name.localeCompare(b.name)).map(({ id, name }) => ({ id, name }));
+    if (same) return { ok: true, value: { picName: pic.name, members } };
+
+    await tx.picMember.deleteMany({ where: { picId: pic.id, userId: { notIn: wanted } } });
+    await tx.picMember.createMany({ data: wanted.map((userId) => ({ picId: pic.id, userId })), skipDuplicates: true });
+    await tx.auditEvent.create({
+      data: {
+        actorId: actor.id,
+        action: "pic.members_changed",
+        entityType: "pic",
+        entityId: pic.id,
+        before: { members: before.map((user) => user.email) },
+        after: { members: users.map((user) => user.email) },
+      },
+    });
+    return { ok: true, value: { picName: pic.name, members } };
+  });
 }
 
 /**
@@ -83,7 +146,7 @@ export async function linkPicAccount(db: PrismaClient, claimedActor: Actor, inpu
     return await db.$transaction(async (tx): Promise<PicResult<{ picName: string; account: { id: string; name: string } | null }>> => {
       const actor = await loadActor(tx, claimedActor);
       if (!actor || !can(actor.role, "pics.manage")) return fail("FORBIDDEN", FORBIDDEN);
-      const pic = await tx.pic.findUnique({ where: { id: picId }, select: { id: true, name: true, team: true, isActive: true, account: { select: { id: true, name: true, email: true } } } });
+      const pic = await tx.pic.findUnique({ where: { id: picId }, select: { id: true, name: true, team: true, isActive: true, account: { select: { id: true, name: true, email: true } }, _count: { select: { members: true } } } });
       if (!pic) return fail("NOT_FOUND", "PIC tidak ditemukan.");
       if ((pic.account?.id ?? null) === wanted) return { ok: true, value: { picName: pic.name, account: pic.account ? { id: pic.account.id, name: pic.account.name } : null } };
 
@@ -91,6 +154,7 @@ export async function linkPicAccount(db: PrismaClient, claimedActor: Actor, inpu
       if (wanted !== null) {
         if (!PIC_ACCOUNT_TEAMS.includes(pic.team)) return fail("INVALID_INPUT", `PIC ${PIC_TEAM_LABELS[pic.team]} belum memakai akun sendiri; tim ini masih memakai akun bersama.`);
         if (!pic.isActive) return fail("INVALID_INPUT", `${pic.name} tidak aktif. Aktifkan dulu sebelum memberinya akun.`);
+        if (pic._count.members > 0) return fail("INVALID_INPUT", `${pic.name} adalah PIC bersama. Kosongkan anggotanya dulu sebelum memberinya akun sendiri.`);
         const user = await tx.user.findUnique({ where: { id: wanted }, select: { id: true, name: true, email: true, role: true, isActive: true, picId: true } });
         if (!user) return fail("NOT_FOUND", "Akun tidak ditemukan.");
         if (!user.isActive) return fail("INVALID_INPUT", "Akun itu tidak aktif.");
@@ -232,23 +296,28 @@ export async function assignRequestPic(db: PrismaClient, claimedActor: Actor, in
     if (wanted === request.picId) return { ok: true, value: { code: request.code, picId: request.picId } };
 
     let toName: string | null = null;
-    let toAccountId: string | null = null;
+    let toAccountIds: string[] = [];
     if (wanted !== null) {
-      const pic = await tx.pic.findUnique({ where: { id: wanted }, select: { id: true, name: true, team: true, isActive: true, account: { select: { id: true, isActive: true } } } });
+      const pic = await tx.pic.findUnique({
+        where: { id: wanted },
+        select: { id: true, name: true, team: true, isActive: true, account: { select: { id: true, isActive: true } }, members: { select: { user: { select: { id: true, isActive: true } } } } },
+      });
       if (!pic) return fail("NOT_FOUND", "PIC tidak ditemukan.");
       if (pic.team !== picTeamOf(request.type)) return fail("INVALID_INPUT", `A ${request.type} request goes to a ${PIC_TEAM_LABELS[picTeamOf(request.type)]} PIC.`);
       if (!pic.isActive) return fail("INVALID_INPUT", `${pic.name} tidak aktif, jadi tidak bisa diberi tugas.`);
       toName = pic.name;
-      toAccountId = pic.account?.isActive ? pic.account.id : null;
+      // The PIC's own account (D-097), or every member of a shared PIC (D-100).
+      toAccountIds = [...(pic.account ? [pic.account] : []), ...pic.members.map((member) => member.user)].filter((user) => user.isActive).map((user) => user.id);
     }
     await tx.request.update({ where: { id: request.id }, data: { picId: wanted } });
     await tx.requestPicAssignment.create({ data: { requestId: request.id, fromPicId: request.picId, toPicId: wanted, changedById: actor.id } });
     await tx.auditEvent.create({
       data: { actorId: actor.id, action: "request.pic_assigned", entityType: "request", entityId: request.id, before: { pic: request.pic?.name ?? null }, after: { pic: toName } },
     });
-    // A PIC with their own account (D-097) hears that the request is theirs now; one who takes it themself is not told.
-    if (toAccountId) {
-      await notify(tx, { actorId: actor.id, recipientIds: [toAccountId], kind: "request.pic_assigned", title: `${request.code} diserahkan kepada Anda`, body: request.title, href: `/request/${request.code}` });
+    // A PIC with their own account (D-097), or the members of a shared PIC (D-100), hear that the request is theirs now; one who takes
+    // it themself is not told (notify leaves out the actor).
+    if (toAccountIds.length > 0) {
+      await notify(tx, { actorId: actor.id, recipientIds: toAccountIds, kind: "request.pic_assigned", title: `${request.code} diserahkan kepada Anda`, body: request.title, href: `/request/${request.code}` });
     }
     return { ok: true, value: { code: request.code, picId: wanted } };
   });

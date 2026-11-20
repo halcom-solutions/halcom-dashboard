@@ -957,8 +957,13 @@ test.describe("account", () => {
     await user.getByLabel("Current password").fill(first);
     await user.getByLabel("New password", { exact: true }).fill(second);
     await user.getByLabel("Confirm new password").fill(second);
+    // The eye button shows what was typed.
+    await user.getByRole("button", { name: "Lihat password" }).first().click();
+    await expect(user.getByLabel("Current password")).toHaveAttribute("type", "text");
     await user.getByRole("button", { name: "Change password" }).click();
+    // A changed password goes straight to the dashboard, and the message follows.
     await expect(user.getByRole("status").filter({ hasText: "Kata sandi diubah." })).toBeVisible();
+    await expect(user).toHaveURL(/\/dashboard/);
 
     const fresh = await browser.newContext();
     const freshPage = await fresh.newPage();

@@ -157,7 +157,7 @@ test.describe("user management", () => {
       await otherPage.getByRole("button", { name: "Change password" }).click();
       await expect(otherPage.getByText("Kata sandi diubah.")).toBeVisible({ timeout: 10_000 });
     }).toPass({ timeout: 60_000 });
-    await otherPage.goto("/dashboard/purchasing");
+    // The gate opens straight onto the account's own dashboard.
     await expectOnDashboard(otherPage, "/dashboard/purchasing", "Purchasing dashboard");
     await other.close();
 

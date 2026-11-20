@@ -455,7 +455,12 @@ test.describe("projects and requests", () => {
     await signIn(page, "SALES");
     const projectCode = await createProject(page, "Old naem");
     await page.goto(`/projects/${projectCode}`);
-    await expect(page.getByRole("button", { name: "Edit nama dan description" })).toHaveCount(0);
+    // The owning salesperson may edit the description, so the Edit window is there, but it has no name field.
+    await expect(async () => {
+      if (!(await page.getByRole("dialog").isVisible())) await page.getByRole("button", { name: "Edit nama dan description" }).click();
+      await expect(page.getByRole("dialog").getByLabel("Description")).toBeVisible({ timeout: 1500 });
+    }).toPass();
+    await expect(page.getByRole("dialog").getByLabel("Nama project", { exact: true })).toHaveCount(0);
 
     const soa = await asRole(browser, "SOA");
     await soa.goto(`/projects/${projectCode}`);
@@ -983,6 +988,7 @@ test.describe("responsive layout", () => {
       "Customers",
       "Sales targets",
       "Request center",
+      "Quotations",
     ]);
     await expect(page).toHaveTitle("Halcom Dashboard");
 

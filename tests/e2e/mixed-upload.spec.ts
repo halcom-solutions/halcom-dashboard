@@ -59,7 +59,8 @@ test("one upload adds the rows without a Project ID and updates the ones with it
   await expect(admin.getByRole("dialog").getByRole("row").filter({ hasText: `Mixed old job ${stamp}` })).toContainText(code);
   await admin.getByRole("button", { name: "Tutup dan tampilkan project" }).click();
   await admin.goto(`/projects?q=${stamp}`);
-  await expect(admin.getByText(`Mixed new job ${stamp}`).first()).toBeVisible();
+  // The project shows once as a table row and once as a phone card (hidden on a wide screen): look at the visible one.
+  await expect(admin.getByText(`Mixed new job ${stamp}`).filter({ visible: true }).first()).toBeVisible();
   await expect(admin.getByText(`Mixed ghost job ${stamp}`)).toHaveCount(0);
   await admin.context().close();
 });

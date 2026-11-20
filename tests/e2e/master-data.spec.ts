@@ -185,11 +185,11 @@ test.describe("SOA technical sections", () => {
 });
 
 test.describe("Purchasing sees RFQ and PO requests only", () => {
-  test("the menu offers the Purchasing dashboard, RFQ requests and PO requests, nothing else", async ({ page }) => {
+  test("the menu offers the Purchasing dashboard, RFQ and PO requests, Distributors and Quotations, nothing else", async ({ page }) => {
     await signIn(page, "PURCHASING");
     const nav = page.getByRole("navigation", { name: "Main" });
 
-    await expect(nav.getByRole("link")).toHaveText(["Purchasing dashboard", "RFQ requests", "PO requests"]);
+    await expect(nav.getByRole("link")).toHaveText(["Purchasing dashboard", "RFQ requests", "PO requests", "Distributors", "Quotations"]);
     await expect(page.getByRole("heading", { level: 1, name: "Purchasing dashboard" })).toBeVisible();
   });
 

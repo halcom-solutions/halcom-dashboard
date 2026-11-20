@@ -149,10 +149,10 @@ test.describe("persistent login and switching accounts", () => {
 
 test.describe("each role sees its own modules", () => {
   const MODULES = {
-    SALES: ["Overview", "Sales pipeline", "Projects", "Customers", "Sales targets", "Request center"],
+    SALES: ["Overview", "Sales pipeline", "Projects", "Customers", "Sales targets", "Request center", "Quotations"],
     SOA: ["Overview", "SOA dashboard", "Projects", "BOQ tickets", "Purchasing handoff", "Technical reports", "Principal & solution master data"],
-    PURCHASING: ["Purchasing dashboard", "RFQ requests", "PO requests"],
-    FINANCE: ["Overview", "Finance dashboard", "Projects", "All requests", "BOQ requests", "RFQ requests", "PO requests", "Financial crosscheck"],
+    PURCHASING: ["Purchasing dashboard", "RFQ requests", "PO requests", "Distributors", "Quotations"],
+    FINANCE: ["Overview", "Finance dashboard", "Projects", "All requests", "BOQ requests", "RFQ requests", "PO requests", "Quotations", "Financial crosscheck"],
   } as const;
 
   for (const [role, labels] of Object.entries(MODULES)) {

@@ -85,6 +85,7 @@ test.describe("access control", () => {
       "BOQ requests",
       "RFQ requests",
       "PO requests",
+      "Quotations",
       "Financial crosscheck",
     ]);
   });

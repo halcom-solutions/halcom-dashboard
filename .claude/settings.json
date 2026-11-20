@@ -12,6 +12,8 @@
     ]
   },
   "enabledPlugins": {
-    "ponytail@ponytail": true
+    "ponytail@ponytail": true,
+    "playwright@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true
   }
 }

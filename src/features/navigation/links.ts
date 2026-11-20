@@ -74,7 +74,7 @@ export const CUSTOMERS_PATH = "/customers";
 const MODULE_LINKS: readonly ModuleLink[] = [
   { href: PROJECTS_PATH, label: "Projects", group: "work", icon: "projects", permission: "projects.view", hiddenFor: ["PURCHASING"] },
   // A project (and its first request) is created with the button on the Projects page; Sales also have one on their dashboard, SOA on BOQ
-  // tickets, Purchasing on RFQ and PO requests ("New project + RFQ"), so their focused menus leave it out.
+  // tickets, Purchasing in the New RFQ request form ("Project baru"), so their focused menus leave it out.
   { href: `${PROJECTS_PATH}/new`, label: "New project", group: "work", icon: "new", permission: "projects.create.external", hiddenFor: ["SALES", "SOA", "PURCHASING"] },
   { href: CUSTOMERS_PATH, label: "Customers", group: "work", icon: "customers", permission: "customers.view" },
   { href: SALES_TARGETS_PATH, label: "Sales targets", group: "work", icon: "targets", permission: "targets.edit" },

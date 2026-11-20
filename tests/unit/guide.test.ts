@@ -156,9 +156,9 @@ describe("what the guide offers to whom", () => {
     expect(hrefs("sales.create", "SALES")).toContain("/projects/new");
     expect(hrefs("sales.create", "FINANCE")).not.toContain("/projects/new");
     expect(hrefs("sales.create", "MANAGEMENT")).not.toContain("/projects/new");
-    // Purchasing registers the project of an RFQ (D-094), so its own step offers the form with the RFQ chosen.
-    expect(hrefs("pur.raise", "PURCHASING")).toContain("/projects/new?type=RFQ");
-    expect(hrefs("pur.raise", "FINANCE")).not.toContain("/projects/new?type=RFQ");
+    // Purchasing registers the project of an RFQ in the request form itself (D-096), so its step offers that form.
+    expect(hrefs("pur.raise", "PURCHASING")).toContain("/requests/new");
+    expect(hrefs("pur.raise", "FINANCE")).not.toContain("/requests/new");
     expect(hrefs("fin.check", "FINANCE")).toContain("/finance/crosscheck");
     expect(hrefs("fin.check", "SALES")).not.toContain("/finance/crosscheck");
     expect(hrefs("soa.handoff", "SOA")).toContain("/handoffs");

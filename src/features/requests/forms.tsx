@@ -227,9 +227,88 @@ function picOptions(projects: readonly ProjectOption[], idOf: (p: ProjectOption)
   return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
 }
 
+/** The Sales choice that registers the new project as Other (sales outside the list), with the name typed in. */
+const OTHER_SALES = "OTHER";
+
+/** For an RFQ whose project does not exist yet: the three things asked (project name, end user, Sales), then the RFQ as usual. */
+export type NewProjectChoices = { customers: readonly MasterOption[]; salesPeople: readonly { id: string; name: string }[] };
+
+/** A new project filled in the "Project baru" window, kept in the form until the RFQ is submitted (nothing is saved before that). */
+type NewProjectDraft = { name: string; endUserCompany: string; sales: string; externalSourceName: string };
+
 /**
- * `picFilters` (Purchasing): the projects can be narrowed by their Sales PIC and their SOA PIC, and the chosen project's two PICs are
- * shown. Nothing here changes who the PICs are: they are the project's own, and the request reaches them through the project.
+ * The window that asks for a new project's name, end user and Sales. It has its own form, outside the RFQ form, so its required
+ * fields never block an RFQ for an existing project; "Pakai project ini" hands the values back and closes it.
+ */
+function NewProjectDialog({ dialog, choices, onUse }: { dialog: React.RefObject<HTMLDialogElement | null>; choices: NewProjectChoices; onUse: (draft: NewProjectDraft) => void }) {
+  const id = useId();
+  const [sales, setSales] = useState("");
+  return (
+    <dialog
+      ref={dialog}
+      aria-labelledby={`${id}-title`}
+      className="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-xl border bg-card p-0 text-card-foreground shadow-xl backdrop:bg-black/40"
+      onClick={(event) => {
+        // A click on the dimmed area outside the window closes it.
+        if (event.target === event.currentTarget) dialog.current?.close();
+      }}
+    >
+      <form
+        className="flex flex-col gap-4 p-5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const data = new FormData(event.currentTarget);
+          const value = (key: string) => String(data.get(key) ?? "").trim();
+          onUse({ name: value("name"), endUserCompany: value("endUserCompany"), sales: value("salesChoice"), externalSourceName: sales === OTHER_SALES ? value("externalSourceName") : "" });
+          dialog.current?.close();
+        }}
+      >
+        <div>
+          <h2 id={`${id}-title`} className="font-heading text-lg font-semibold">
+            Project baru
+          </h2>
+          <p className="text-sm text-muted-foreground">Project dibuat bersamaan dengan RFQ saat dikirim. Detail lain bisa dilengkapi Sales nanti di halaman project.</p>
+        </div>
+        <Field id={`${id}-name`} label="Project name *">
+          <Input id={`${id}-name`} name="name" required maxLength={120} placeholder="CCTV AI" />
+        </Field>
+        <Field id={`${id}-company`} label="End user *">
+          <CompanyInput id={`${id}-company`} name="endUserCompany" customers={choices.customers} />
+        </Field>
+        <Field id={`${id}-sales`} label="Sales *" hint="Salesperson pemilik proyek, atau Other bila penjualnya di luar daftar. Ketik untuk mencari.">
+          <SearchSelect
+            id={`${id}-sales`}
+            name="salesChoice"
+            label="sales"
+            options={[...choices.salesPeople, { id: OTHER_SALES, name: "Other (di luar daftar)" }]}
+            value={sales}
+            onChange={setSales}
+            required
+            placeholder="Cari salesperson"
+          />
+        </Field>
+        {sales === OTHER_SALES ? (
+          <Field id={`${id}-sales-name`} label={`${EXTERNAL_SOURCE_LABELS.externalSourceName} *`} hint="Nama sales person atau perusahaan penjualnya.">
+            <Input id={`${id}-sales-name`} name="externalSourceName" required maxLength={SOURCE_FIELD_LIMITS.externalSourceName} />
+          </Field>
+        ) : null}
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => dialog.current?.close()}>
+            Batal
+          </Button>
+          <Button type="submit">Pakai project ini</Button>
+        </div>
+      </form>
+    </dialog>
+  );
+}
+
+/**
+ * The RFQ is raised for an existing project by default. `picFilters` (RFQ from Purchasing and Superadmin): the projects can be narrowed
+ * by their Sales PIC (an optional, small filter beside the Project label), and the chosen project's Sales PIC and SOA PIC are shown.
+ * Nothing here changes who the PICs are: they are the project's own, and the request reaches them through the project. `newProject`:
+ * "Project baru" opens a window for a project that does not exist yet; the RFQ then registers it in the same submit (createProjectAction,
+ * with the RFQ as its request).
  */
 export function RequestForm({
   projects,
@@ -238,6 +317,7 @@ export function RequestForm({
   types,
   submissionKey,
   picFilters = false,
+  newProject,
 }: {
   projects: ProjectOption[];
   defaultProjectId: string;
@@ -245,104 +325,141 @@ export function RequestForm({
   types: readonly RequestType[];
   submissionKey: string;
   picFilters?: boolean;
+  newProject?: NewProjectChoices;
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(createRequestAction, null);
+  const [newState, newAction, newPending] = useActionState<FormState, FormData>(createProjectAction, null);
   const [type, setType] = useState<RequestType>(defaultType);
   const [projectId, setProjectId] = useState(defaultProjectId);
   const [salesFilter, setSalesFilter] = useState(ANY_PIC);
-  const [soaFilter, setSoaFilter] = useState(ANY_PIC);
+  const [draft, setDraft] = useState<NewProjectDraft | null>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const offersNew = Boolean(newProject) && type === "RFQ";
+  const creating = offersNew && draft !== null;
+  const filtering = picFilters && type === "RFQ" && !creating;
 
-  const matches = (project: ProjectOption, sales: string, soa: string) =>
-    (sales === ANY_PIC || (sales === NO_PIC ? !project.salesPicId : project.salesPicId === sales)) && (soa === ANY_PIC || (soa === NO_PIC ? !project.soaPicId : project.soaPicId === soa));
-  const visible = picFilters ? projects.filter((project) => matches(project, salesFilter, soaFilter)) : projects;
+  const matches = (project: ProjectOption, sales: string) => sales === ANY_PIC || (sales === NO_PIC ? !project.salesPicId : project.salesPicId === sales);
+  const visible = filtering ? projects.filter((project) => matches(project, salesFilter)) : projects;
   const chosen = projects.find((project) => project.id === projectId);
   // A filter that leaves out the chosen project clears the choice, so a hidden project can never be submitted by accident.
-  function changeFilters(sales: string, soa: string) {
+  function changeSalesFilter(sales: string) {
     setSalesFilter(sales);
-    setSoaFilter(soa);
-    if (chosen && !matches(chosen, sales, soa)) setProjectId("");
+    if (chosen && !matches(chosen, sales)) setProjectId("");
   }
+  const draftSales = draft ? (draft.sales === OTHER_SALES ? `Other: ${draft.externalSourceName}` : (newProject?.salesPeople.find((person) => person.id === draft.sales)?.name ?? "")) : "";
 
   return (
-    <form action={formAction} className="grid gap-4 sm:grid-cols-2">
-      <input type="hidden" name="submissionKey" value={submissionKey} />
-      {picFilters ? (
-        <>
-          <Field id="request-sales-pic" label="Sales PIC" hint="Opsional. Mempersempit daftar proyek ke yang dimiliki salesperson ini.">
-            <NativeSelect id="request-sales-pic" value={salesFilter} onChange={(event) => changeFilters(event.target.value, soaFilter)}>
-              <option value={ANY_PIC}>Any Sales PIC</option>
-              {picOptions(projects, (p) => p.salesPicId, (p) => p.salesPicName).map(([id, name]) => (
-                <option key={id} value={id}>
-                  {name}
-                </option>
-              ))}
-              <option value={NO_PIC}>No Sales PIC (project from another source)</option>
-            </NativeSelect>
-          </Field>
-          <Field id="request-soa-pic" label="SOA PIC" hint="Opsional. Mempersempit daftar proyek ke yang ditangani technical PIC ini.">
-            <NativeSelect id="request-soa-pic" value={soaFilter} onChange={(event) => changeFilters(salesFilter, event.target.value)}>
-              <option value={ANY_PIC}>Any SOA PIC</option>
-              {picOptions(projects, (p) => p.soaPicId, (p) => p.soaPicName).map(([id, name]) => (
-                <option key={id} value={id}>
-                  {name}
-                </option>
-              ))}
-              <option value={NO_PIC}>No SOA PIC yet</option>
-            </NativeSelect>
-          </Field>
-        </>
-      ) : null}
-      <Field id="request-project" label="Project *">
-        <SearchSelect
-          id="request-project"
-          name="projectId"
-          label="project"
-          options={visible.map((project) => ({ id: project.id, name: `${project.code} · ${project.endUserCompany}, ${project.name}` }))}
-          value={projectId}
-          onChange={setProjectId}
-          required
-          placeholder="Cari project: kode, perusahaan, atau nama"
-        />
-      </Field>
-      {picFilters ? (
-        <div className="text-sm sm:self-end sm:pb-1.5" aria-live="polite" data-testid="request-project-pics">
-          {chosen ? (
-            <p>
-              <span className="text-muted-foreground">Sales PIC:</span> {chosen.salesPicName ?? "None (project from another source)"} ·{" "}
-              <span className="text-muted-foreground">SOA PIC:</span> {chosen.soaPicName ?? "None yet"}
-              <span className="block text-xs text-muted-foreground">RFQ ini masuk ke Purchasing dan ditampilkan ke PIC-PIC ini; muncul juga di Sales dashboard milik Sales PIC.</span>
-            </p>
-          ) : (
-            <p className="text-muted-foreground">Pilih proyek untuk melihat Sales PIC dan SOA PIC-nya.</p>
-          )}
-        </div>
-      ) : null}
-      <Field id="request-type" label="Request type *" hint={`Masuk ke ${OWNING_TEAM_LABELS[type]}.`}>
-        <NativeSelect id="request-type" name="type" required value={type} onChange={(event) => setType(event.target.value as RequestType)}>
-          {types.map((option) => (
-            <option key={option} value={option}>
-              {option}: {REQUEST_TYPE_LABELS[option]}
-            </option>
-          ))}
-        </NativeSelect>
-      </Field>
-      <div className="sm:col-span-2">
-        <Field id="request-description" label="Details" hint="Apa yang dibutuhkan tim, dengan spesifikasi, kuantitas, merek, dan batasan yang sudah diketahui. Maksimal 4000 karakter.">
-          <Textarea id="request-description" name="description" maxLength={4000} className="min-h-32" />
+    <>
+      <form action={creating ? newAction : formAction} className="grid gap-4 sm:grid-cols-2">
+        <input type="hidden" name="submissionKey" value={submissionKey} />
+        <Field id="request-type" label="Request type *" hint={`Masuk ke ${OWNING_TEAM_LABELS[type]}.`}>
+          <NativeSelect id="request-type" name={creating ? "requestType" : "type"} required value={type} onChange={(event) => setType(event.target.value as RequestType)}>
+            {types.map((option) => (
+              <option key={option} value={option}>
+                {option}: {REQUEST_TYPE_LABELS[option]}
+              </option>
+            ))}
+          </NativeSelect>
         </Field>
-      </div>
-      <Field id="request-needed" label="Needed by" hint="Opsional.">
-        <DateInput id="request-needed" name="requiredBy" label="Needed by" />
-      </Field>
-      <div className="flex flex-col gap-2 sm:col-span-2">
-        <FormStatus state={state} />
-        <div>
-          <Button type="submit" disabled={pending || projects.length === 0}>
-            {pending ? "Submitting…" : "Create request"}
-          </Button>
+        <Field id="request-needed" label="Needed by" hint="Opsional.">
+          <DateInput id="request-needed" name={creating ? "requestRequiredBy" : "requiredBy"} label="Needed by" />
+        </Field>
+
+        {/* The project is the main field and takes the full width; the Sales filter and "Project baru" stay small beside its label. */}
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            {creating ? <span className="text-sm leading-none font-medium">Project *</span> : <Label htmlFor="request-project">Project *</Label>}
+            <div className="flex flex-wrap items-center gap-2">
+              {filtering ? (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <label htmlFor="request-sales-filter">Filter Sales PIC (opsional)</label>
+                  <NativeSelect
+                    id="request-sales-filter"
+                    value={salesFilter}
+                    onChange={(event) => changeSalesFilter(event.target.value)}
+                    className="h-7 w-auto max-w-48 px-1.5 text-xs md:text-xs"
+                  >
+                    <option value={ANY_PIC}>Semua</option>
+                    {picOptions(projects, (p) => p.salesPicId, (p) => p.salesPicName).map(([id, name]) => (
+                      <option key={id} value={id}>
+                        {name}
+                      </option>
+                    ))}
+                    <option value={NO_PIC}>Tanpa Sales PIC (Other)</option>
+                  </NativeSelect>
+                </div>
+              ) : null}
+              {offersNew && !creating ? (
+                <Button type="button" size="sm" aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>
+                  + Project baru
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          {creating && draft ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-sm" data-testid="request-new-project">
+              <p>
+                <span className="font-medium">Project baru:</span> {draft.name} · {draft.endUserCompany} · Sales: {draftSales}
+              </p>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => dialog.current?.showModal()}>
+                  Ubah
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setDraft(null)}>
+                  Pakai project yang ada
+                </Button>
+              </div>
+              {/* What createProjectAction reads: Internal Sales for a listed salesperson, Other with the name typed in. The service checks the same rules. */}
+              <input type="hidden" name="name" value={draft.name} />
+              <input type="hidden" name="endUserCompany" value={draft.endUserCompany} />
+              <input type="hidden" name="sourceType" value={draft.sales === OTHER_SALES ? "OTHER" : "INTERNAL_SALES"} />
+              {draft.sales === OTHER_SALES ? <input type="hidden" name="externalSourceName" value={draft.externalSourceName} /> : <input type="hidden" name="salesOwnerId" value={draft.sales} />}
+            </div>
+          ) : (
+            <SearchSelect
+              id="request-project"
+              name="projectId"
+              label="project"
+              options={visible.map((project) => ({ id: project.id, name: `${project.code} · ${project.endUserCompany}, ${project.name}` }))}
+              value={projectId}
+              onChange={setProjectId}
+              required
+              placeholder="Cari project: kode, perusahaan, atau nama"
+            />
+          )}
+          {filtering ? (
+            <p className="text-xs text-muted-foreground" aria-live="polite" data-testid="request-project-pics">
+              {chosen ? (
+                <>
+                  Sales PIC: <span className="text-foreground">{chosen.salesPicName ?? "None (project from another source)"}</span> · SOA PIC:{" "}
+                  <span className="text-foreground">{chosen.soaPicName ?? "None yet"}</span>. RFQ ini masuk ke Purchasing dan tampil juga di Sales dashboard milik Sales PIC.
+                </>
+              ) : offersNew ? (
+                "Pilih proyek untuk melihat Sales PIC dan SOA PIC-nya. Belum ada? Pakai + Project baru."
+              ) : (
+                "Pilih proyek untuk melihat Sales PIC dan SOA PIC-nya."
+              )}
+            </p>
+          ) : null}
         </div>
-      </div>
-    </form>
+
+        <div className="sm:col-span-2">
+          <Field id="request-description" label="Details" hint="Apa yang dibutuhkan tim, dengan spesifikasi, kuantitas, merek, dan batasan yang sudah diketahui. Maksimal 4000 karakter.">
+            {/* A new project takes the details as its RFQ's, not as the project description. */}
+            <Textarea id="request-description" name={creating ? "requestDescription" : "description"} maxLength={4000} className="min-h-32" />
+          </Field>
+        </div>
+        <div className="flex flex-col gap-2 sm:col-span-2">
+          <FormStatus state={creating ? newState : state} />
+          <div>
+            <Button type="submit" disabled={pending || newPending || (!creating && projects.length === 0)}>
+              {pending || newPending ? "Submitting…" : creating ? "Create project and RFQ" : "Create request"}
+            </Button>
+          </div>
+        </div>
+      </form>
+      {newProject ? <NewProjectDialog dialog={dialog} choices={newProject} onUse={setDraft} /> : null}
+    </>
   );
 }
 

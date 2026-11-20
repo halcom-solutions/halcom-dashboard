@@ -280,8 +280,8 @@ test.describe("importing projects from Excel, paging the table and drilling down
     await expect(soa.getByText("Showing 1–30 of 30")).toBeVisible();
     await expect(soa.getByRole("group", { name: "Rows per page" }).getByRole("link", { name: "All" })).toHaveAttribute("aria-current", "true");
     // Searching again from All keeps All; the numbers follow the filter.
-    await soa.getByLabel("Search projects").fill(`job 7 ${id}`);
-    await soa.getByRole("button", { name: "Filter" }).click();
+    await soa.getByLabel("Search projects").fill(`"job 7 ${id}"`);
+    await soa.getByRole("button", { name: "Cari" }).click();
     await expect(soa).toHaveURL(/per=all/);
     await expect(soa.getByRole("status").filter({ hasText: "1 project" })).toBeVisible();
 

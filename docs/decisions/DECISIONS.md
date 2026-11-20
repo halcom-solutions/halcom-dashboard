@@ -1130,3 +1130,12 @@ The preview of each template (filled with sample data) is no longer a long block
 - **Same form.** `/requests/new` with RFQ chosen looks the same for Purchasing and Superadmin (the roles that hold `projects.assign-sales` and may raise an RFQ): Request type and the optional Needed by side by side, then the Project field (full width, the main field), with an optional Sales PIC filter and a small "+ Project baru" button beside its label (no SOA PIC filter: asked by the owner the same day), the chosen project's Sales PIC and SOA PIC as a short line under it, then the RFQ details. An existing project is the default; an RFQ for it works as before.
 - **Project baru.** "+ Project baru" opens a window (asked by the owner the same day, replacing a "Project sudah ada / Project baru" choice in the form). "Pakai project ini" closes it and the Project field then names the new project, with "Ubah" and "Pakai project yang ada"; nothing is saved until the RFQ is sent. A new project asks only for its name, the end user and Sales: a registered salesperson (an Internal Sales project they own) or Other (the name of the seller typed in). The same submit creates the project and its RFQ through `createProject` (no new server rule); source, contact, reference, description, target date and commercial fields are left for later on the project page.
 - The "New project + RFQ" button on the RFQ and PO lists and its guide link are gone: the request form covers it. `/projects/new` stays open to Purchasing.
+
+## D-099: Projects search by word and description, a BOQ / RFQ filter, dropdowns that apply at once (2026-11-20)
+
+Asked by the product owner. (D-097 and D-098 are taken on other branches.)
+
+- **Search.** The Projects search splits the text into words; a project matches when every word appears somewhere, in any order. The fields now include the Overview description Sales write, the location and the stakeholders, beside the code, End User, name, PICs, principals and external source. Words in double quotes stay one phrase (`"job 7"` does not find "job 17").
+- **BOQ / RFQ filter.** A dropdown on the Projects list: "Sudah BOQ", "Sudah RFQ", "Sudah BOQ dan RFQ", "Belum BOQ maupun RFQ" (`requests=` in the URL). Any BOQ or RFQ counts, whatever its status; a deleted request does not.
+- **Dropdowns apply at once.** Picking a value in any filter dropdown reloads the list; the button (now "Cari") is only for the search text, which also applies on Enter.
+- **Edit button.** The Edit button of the name and description on the Overview is blue (the primary button).

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { PageFallback } from "@/components/app-shell/page-fallback";
+import { AutoFilterForm } from "@/components/ui/auto-filter-form";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,8 @@ import {
   DEFAULT_PROJECT_PAGE_SIZE,
   listPrincipalOptions,
   PROJECT_PAGE_SIZES,
+  PROJECT_REQUEST_FILTER_LABELS,
+  PROJECT_REQUEST_FILTERS,
   PROJECT_SHOW_LABELS,
   PROJECT_SHOWS,
   PROJECT_SORTS,
@@ -74,6 +77,7 @@ async function Projects({ searchParams }: Pick<PageProps<"/projects">, "searchPa
   const otherPrincipals = principalId ? [] : (drill.principal ?? []);
   const show = PROJECT_SHOWS.find((s) => s === one(query.show));
   const sourceType = PROJECT_SOURCE_TYPES.find((s) => s === one(query.source));
+  const requests = PROJECT_REQUEST_FILTERS.find((r) => r === one(query.requests));
   // "mine" is the salesperson's view of the tiles; it only ever narrows to the signed-in user's own projects.
   const mine = one(query.mine) === "1";
   const filter: ProjectFilter = {
@@ -83,6 +87,7 @@ async function Projects({ searchParams }: Pick<PageProps<"/projects">, "searchPa
     principalId,
     show,
     sourceType,
+    requests,
     salesOwnerId: mine ? viewer.id : undefined,
     reached: drill.reached,
     principalKeys: otherPrincipals,
@@ -130,6 +135,7 @@ async function Projects({ searchParams }: Pick<PageProps<"/projects">, "searchPa
     for (const value of drill.soaPic ?? []) params.append("soapic", value);
     if (show) params.set("show", show);
     if (sourceType) params.set("source", sourceType);
+    if (requests) params.set("requests", requests);
     if (mine) params.set("mine", "1");
     const per = next.per ?? pageSize;
     if (per !== DEFAULT_PROJECT_PAGE_SIZE) params.set("per", String(per));
@@ -143,7 +149,7 @@ async function Projects({ searchParams }: Pick<PageProps<"/projects">, "searchPa
   };
   const sortHref = (column: ProjectSort) => href({ sort: column, dir: column === sort ? (dir === "asc" ? "desc" : "asc") : defaultDir(column), page: 1 });
   const firstShown = projects.length === 0 ? 0 : pageSize === "all" ? 1 : (result.page - 1) * pageSize + 1;
-  const filtered = Boolean(search || progress || trackStatus || principalId || show || sourceType || mine || chartFilters.length > 0);
+  const filtered = Boolean(search || progress || trackStatus || principalId || show || sourceType || requests || mine || chartFilters.length > 0);
 
   return (
     <>
@@ -152,7 +158,7 @@ async function Projects({ searchParams }: Pick<PageProps<"/projects">, "searchPa
         summary="Semua proyek di pipeline, terbaru di atas."
       />
       <div className="mb-4 flex flex-col gap-3">
-        <form role="search" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))_auto]">
+        <AutoFilterForm role="search" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto]">
           {show ? <input type="hidden" name="show" value={show} /> : null}
           {mine ? <input type="hidden" name="mine" value="1" /> : null}
           {drill.reached ? <input type="hidden" name="reached" value={drill.reached} /> : null}
@@ -160,7 +166,7 @@ async function Projects({ searchParams }: Pick<PageProps<"/projects">, "searchPa
           {(["solution", "industry", "owner"] as const).flatMap((name) => (drill[name] ?? []).map((value) => <input key={`${name}-${value}`} type="hidden" name={name} value={value} />))}
           {(drill.soaPic ?? []).map((value) => <input key={`soapic-${value}`} type="hidden" name="soapic" value={value} />)}
           {pageSize !== DEFAULT_PROJECT_PAGE_SIZE ? <input type="hidden" name="per" value={String(pageSize)} /> : null}
-          <Input name="q" defaultValue={search} placeholder="Cari project" title="Cari berdasarkan kode, customer, project, PIC, principal, atau external source" aria-label="Search projects" maxLength={100} />
+          <Input name="q" defaultValue={search} placeholder="Cari project atau description" title="Setiap kata dicari di kode, customer, nama project, description, lokasi, stakeholders, PIC, principal, atau external source. Kata dalam tanda kutip dicari sebagai satu frasa." aria-label="Search projects" maxLength={100} />
           <NativeSelect name="progress" defaultValue={progress ?? ""} aria-label="Progress">
             <option value="">All progress</option>
             {PROJECT_PROGRESSES.map((p) => (
@@ -193,10 +199,18 @@ async function Projects({ searchParams }: Pick<PageProps<"/projects">, "searchPa
               </option>
             ))}
           </NativeSelect>
+          <NativeSelect name="requests" defaultValue={requests ?? ""} aria-label="BOQ / RFQ">
+            <option value="">All BOQ / RFQ</option>
+            {PROJECT_REQUEST_FILTERS.map((r) => (
+              <option key={r} value={r}>
+                {PROJECT_REQUEST_FILTER_LABELS[r]}
+              </option>
+            ))}
+          </NativeSelect>
           <button type="submit" className={buttonVariants({ variant: "outline" })}>
-            Filter
+            Cari
           </button>
-        </form>
+        </AutoFilterForm>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p role="status" className="text-sm text-muted-foreground">
             {result.total} project{result.total === 1 ? "" : "s"}

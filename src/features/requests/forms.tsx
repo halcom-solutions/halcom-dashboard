@@ -234,8 +234,8 @@ const OTHER_SALES = "OTHER";
 export type NewProjectChoices = { customers: readonly MasterOption[]; salesPeople: readonly { id: string; name: string }[] };
 
 /**
- * `picFilters` (RFQ from Purchasing and Superadmin): the projects can be narrowed by their Sales PIC and their SOA PIC, and the chosen
- * project's two PICs are shown. Nothing here changes who the PICs are: they are the project's own, and the request reaches them through
+ * `picFilters` (RFQ from Purchasing and Superadmin): the projects can be narrowed by their Sales PIC (an optional, small filter beside the
+ * Project field), and the chosen project's Sales PIC and SOA PIC are shown. Nothing here changes who the PICs are: they are the project's own, and the request reaches them through
  * the project. `newProject`: an RFQ can instead register its project in the same submit (createProjectAction, with the RFQ as its request).
  */
 export function RequestForm({
@@ -260,21 +260,18 @@ export function RequestForm({
   const [type, setType] = useState<RequestType>(defaultType);
   const [projectId, setProjectId] = useState(defaultProjectId);
   const [salesFilter, setSalesFilter] = useState(ANY_PIC);
-  const [soaFilter, setSoaFilter] = useState(ANY_PIC);
   const [wantsNew, setWantsNew] = useState(false);
   const [sales, setSales] = useState("");
   const creating = Boolean(newProject) && type === "RFQ" && wantsNew;
   const filtering = picFilters && type === "RFQ" && !creating;
 
-  const matches = (project: ProjectOption, sales: string, soa: string) =>
-    (sales === ANY_PIC || (sales === NO_PIC ? !project.salesPicId : project.salesPicId === sales)) && (soa === ANY_PIC || (soa === NO_PIC ? !project.soaPicId : project.soaPicId === soa));
-  const visible = filtering ? projects.filter((project) => matches(project, salesFilter, soaFilter)) : projects;
+  const matches = (project: ProjectOption, sales: string) => sales === ANY_PIC || (sales === NO_PIC ? !project.salesPicId : project.salesPicId === sales);
+  const visible = filtering ? projects.filter((project) => matches(project, salesFilter)) : projects;
   const chosen = projects.find((project) => project.id === projectId);
   // A filter that leaves out the chosen project clears the choice, so a hidden project can never be submitted by accident.
-  function changeFilters(sales: string, soa: string) {
+  function changeSalesFilter(sales: string) {
     setSalesFilter(sales);
-    setSoaFilter(soa);
-    if (chosen && !matches(chosen, sales, soa)) setProjectId("");
+    if (chosen && !matches(chosen, sales)) setProjectId("");
   }
 
   return (
@@ -339,34 +336,31 @@ export function RequestForm({
           )}
         </>
       ) : null}
-      {filtering ? (
-        <>
-          <Field id="request-sales-pic" label="Sales PIC" hint="Opsional. Mempersempit daftar proyek ke yang dimiliki salesperson ini.">
-            <NativeSelect id="request-sales-pic" value={salesFilter} onChange={(event) => changeFilters(event.target.value, soaFilter)}>
-              <option value={ANY_PIC}>Any Sales PIC</option>
-              {picOptions(projects, (p) => p.salesPicId, (p) => p.salesPicName).map(([id, name]) => (
-                <option key={id} value={id}>
-                  {name}
-                </option>
-              ))}
-              <option value={NO_PIC}>No Sales PIC (project from another source)</option>
-            </NativeSelect>
-          </Field>
-          <Field id="request-soa-pic" label="SOA PIC" hint="Opsional. Mempersempit daftar proyek ke yang ditangani technical PIC ini.">
-            <NativeSelect id="request-soa-pic" value={soaFilter} onChange={(event) => changeFilters(salesFilter, event.target.value)}>
-              <option value={ANY_PIC}>Any SOA PIC</option>
-              {picOptions(projects, (p) => p.soaPicId, (p) => p.soaPicName).map(([id, name]) => (
-                <option key={id} value={id}>
-                  {name}
-                </option>
-              ))}
-              <option value={NO_PIC}>No SOA PIC yet</option>
-            </NativeSelect>
-          </Field>
-        </>
-      ) : null}
       {creating ? null : (
-        <Field id="request-project" label="Project *">
+        // The project is the main field and takes the full width; the Sales filter is optional and stays small beside its label.
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <Label htmlFor="request-project">Project *</Label>
+            {filtering ? (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <label htmlFor="request-sales-filter">Filter Sales PIC (opsional)</label>
+                <NativeSelect
+                  id="request-sales-filter"
+                  value={salesFilter}
+                  onChange={(event) => changeSalesFilter(event.target.value)}
+                  className="h-7 w-auto max-w-48 px-1.5 text-xs md:text-xs"
+                >
+                  <option value={ANY_PIC}>Semua</option>
+                  {picOptions(projects, (p) => p.salesPicId, (p) => p.salesPicName).map(([id, name]) => (
+                    <option key={id} value={id}>
+                      {name}
+                    </option>
+                  ))}
+                  <option value={NO_PIC}>Tanpa Sales PIC (Other)</option>
+                </NativeSelect>
+              </div>
+            ) : null}
+          </div>
           <SearchSelect
             id="request-project"
             name="projectId"
@@ -377,21 +371,20 @@ export function RequestForm({
             required
             placeholder="Cari project: kode, perusahaan, atau nama"
           />
-        </Field>
-      )}
-      {filtering ? (
-        <div className="text-sm sm:self-end sm:pb-1.5" aria-live="polite" data-testid="request-project-pics">
-          {chosen ? (
-            <p>
-              <span className="text-muted-foreground">Sales PIC:</span> {chosen.salesPicName ?? "None (project from another source)"} ·{" "}
-              <span className="text-muted-foreground">SOA PIC:</span> {chosen.soaPicName ?? "None yet"}
-              <span className="block text-xs text-muted-foreground">RFQ ini masuk ke Purchasing dan ditampilkan ke PIC-PIC ini; muncul juga di Sales dashboard milik Sales PIC.</span>
+          {filtering ? (
+            <p className="text-xs text-muted-foreground" aria-live="polite" data-testid="request-project-pics">
+              {chosen ? (
+                <>
+                  Sales PIC: <span className="text-foreground">{chosen.salesPicName ?? "None (project from another source)"}</span> · SOA PIC:{" "}
+                  <span className="text-foreground">{chosen.soaPicName ?? "None yet"}</span>. RFQ ini masuk ke Purchasing dan tampil juga di Sales dashboard milik Sales PIC.
+                </>
+              ) : (
+                "Pilih proyek untuk melihat Sales PIC dan SOA PIC-nya."
+              )}
             </p>
-          ) : (
-            <p className="text-muted-foreground">Pilih proyek untuk melihat Sales PIC dan SOA PIC-nya.</p>
-          )}
+          ) : null}
         </div>
-      ) : null}
+      )}
       <div className="sm:col-span-2">
         <Field id="request-description" label="Details" hint="Apa yang dibutuhkan tim, dengan spesifikasi, kuantitas, merek, dan batasan yang sudah diketahui. Maksimal 4000 karakter.">
           {/* A new project takes the details as its RFQ's, not as the project description. */}

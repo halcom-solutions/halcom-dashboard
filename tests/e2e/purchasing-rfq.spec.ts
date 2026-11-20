@@ -30,7 +30,7 @@ test("Purchasing raises an RFQ for a project by its Sales PIC, and the Sales PIC
   await page.getByRole("link", { name: "New RFQ request" }).click();
   await expect(page).toHaveURL(/\/requests\/new/);
 
-  // Only an RFQ is offered, and the two PICs narrow the project list.
+  // Only an RFQ is offered, and the optional Sales PIC filter narrows the project list (there is no SOA PIC filter).
   const type = page.getByLabel("Request type");
   await expect(type).toHaveValue("RFQ");
   await expect(type.locator("option")).toHaveCount(1);
@@ -45,10 +45,10 @@ test("Purchasing raises an RFQ for a project by its Sales PIC, and the Sales PIC
   await search();
   await expect(projectOption).toHaveCount(1);
 
-  await page.getByLabel("Sales PIC").selectOption({ label: "No Sales PIC (project from another source)" });
+  await page.getByLabel("Filter Sales PIC (opsional)").selectOption({ label: "Tanpa Sales PIC (Other)" });
   await search();
   await expect(projectOption).toHaveCount(0);
-  await page.getByLabel("Sales PIC").selectOption({ label: "Satrio" });
+  await page.getByLabel("Filter Sales PIC (opsional)").selectOption({ label: "Satrio" });
   await search();
   await expect(projectOption).toHaveCount(1);
 
@@ -105,11 +105,12 @@ test("Purchasing cannot raise a BOQ or a PO", async ({ page }) => {
 
 test("an RFQ whose project does not exist yet registers it with only its name, end user and Sales, in the same form for Purchasing and Superadmin", async ({ page }) => {
   test.setTimeout(120_000);
-  // Superadmin sees the same RFQ form: the PIC filters and the choice of a new project.
+  // Superadmin sees the same RFQ form: the Sales PIC filter (no SOA PIC filter) and the choice of a new project.
   await signIn(page, "SUPERADMIN");
   await page.goto("/requests/new?type=RFQ");
   await expect(page.getByLabel("Request type")).toHaveValue("RFQ");
-  await expect(page.getByLabel("SOA PIC")).toBeVisible();
+  await expect(page.getByLabel("Filter Sales PIC (opsional)")).toBeVisible();
+  await expect(page.getByLabel(/SOA PIC/)).toHaveCount(0);
   await expect(page.getByText("Project baru", { exact: true })).toBeVisible();
   await signOut(page);
 

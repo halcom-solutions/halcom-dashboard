@@ -10,6 +10,7 @@ import { SaveText } from "@/components/ui/save-text";
 import { Textarea } from "@/components/ui/textarea";
 import { ROLE_LABELS, ROLES, type Role } from "@/domain/access/roles";
 import type { ApprovalStepConfig, CategoryConfig, DocumentConfig, QuotationConfig, StepCondition, TaxSchemeConfig } from "@/domain/quotations/config";
+import { groupThousands } from "@/domain/projects/amount-format";
 import { saveQuotationConfigAction, setNextNumberAction } from "./actions";
 
 /** Percent text ("1,5") from basis points and back. */
@@ -157,7 +158,7 @@ export function QuotationConfigEditor({ config, users, editable, nextNumber }: {
                 ) : null}
                 {step.condition.kind === "REVENUE_AT_LEAST" ? (
                   <Field label="Revenue minimal (Rp)">
-                    <Input value={toRupiah(step.condition.amountCents)} onChange={(e) => setStep(index, { condition: { kind: "REVENUE_AT_LEAST", amountCents: fromRupiah(e.target.value) } })} inputMode="numeric" disabled={off} className="w-44" />
+                    <Input value={groupThousands(toRupiah(step.condition.amountCents))} onChange={(e) => setStep(index, { condition: { kind: "REVENUE_AT_LEAST", amountCents: fromRupiah(e.target.value) } })} inputMode="numeric" disabled={off} className="w-44" />
                   </Field>
                 ) : null}
                 {step.condition.kind !== "ALWAYS" ? (

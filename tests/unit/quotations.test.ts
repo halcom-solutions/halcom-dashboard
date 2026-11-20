@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { groupMoney, moneyFromStored, plainMoney } from "@/features/quotations/calculation-input";
 import { allRequiredApproved, currentStep, isApproverOf, isConditionMet, planApprovals, type ApprovalRow } from "@/domain/quotations/approval";
 import { parseBoqSheet } from "@/domain/quotations/boq-sheet";
 import { calculate, type CalculationInput, type LineInput } from "@/domain/quotations/calculation";
@@ -303,5 +304,25 @@ describe("units of a line (Lot, Unit, Pack)", () => {
     expect(checkQuotationConfig({ ...DEFAULT_QUOTATION_CONFIG, units: [" Meter ", "", "Roll"] })).toMatchObject({ ok: true, value: { units: ["Meter", "Roll"] } });
     expect(checkQuotationConfig({ ...DEFAULT_QUOTATION_CONFIG, units: ["", "  "] })).toEqual({ ok: false, message: "Tambahkan paling sedikit satu satuan." });
     expect(checkQuotationConfig({ ...DEFAULT_QUOTATION_CONFIG, units: ["Unit", "unit"] })).toEqual({ ok: false, message: "Satuan unit ada dua kali." });
+  });
+});
+
+describe("money typed in the calculation", () => {
+  it("puts a dot between every three digits as it is typed, with a decimal comma and at most two decimals", () => {
+    expect(groupMoney("4500000")).toBe("4.500.000");
+    expect(groupMoney("4.5000.00")).toBe("4.500.000");
+    expect(groupMoney("1763000,505")).toBe("1.763.000,50");
+    expect(groupMoney(",5")).toBe("0,5");
+    expect(groupMoney("Rp 0012")).toBe("12");
+    expect(groupMoney("")).toBe("");
+  });
+
+  it("writes an amount from the server the form's way, and the form's way reads back to the same amount", () => {
+    expect(moneyFromStored("1763000")).toBe("1.763.000");
+    expect(moneyFromStored("1763000.50")).toBe("1.763.000,5");
+    expect(moneyFromStored("1763000.00")).toBe("1.763.000");
+    expect(moneyFromStored("")).toBe("");
+    expect(moneyFromStored("1.763.000")).toBe("1.763.000"); // already the form's way: left as it is
+    for (const stored of ["1763000", "1763000.50", "0.05", "15315"]) expect(plainMoney(moneyFromStored(stored))).toBe(String(Number(stored)));
   });
 });

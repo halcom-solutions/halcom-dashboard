@@ -1,5 +1,6 @@
 "use client";
 
+import { useLayoutEffect, useRef } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +11,8 @@ import type { CalculationResult } from "@/domain/quotations/calculation";
 import { ppnExplanation, type TaxSchemeConfig } from "@/domain/quotations/config";
 import { bpToPercent } from "@/domain/quotations/money";
 import { cn } from "@/lib/utils";
-import { shownMoney, type EditorCost, type EditorLine, type EditorTerm } from "./calculation-input";
+import { caretAfterGrouping } from "@/domain/projects/amount-format";
+import { groupMoney, shownMoney, type EditorCost, type EditorLine, type EditorTerm } from "./calculation-input";
 import { formatBp, formatCents } from "./format";
 
 type LineFigures = CalculationResult["lines"][number] | null;
@@ -60,14 +62,38 @@ export function Field({ label, hint, className, children }: { label: string; hin
   );
 }
 
-/** An amount in rupiah: "Rp" in front, typed with thousands dots (1.763.000) and a decimal comma. */
+/**
+ * An amount in rupiah: "Rp" in front, and a dot put between every three digits while it is typed (1.763.000); a comma starts the
+ * decimals. The caret stays after the digit it was after.
+ */
 function MoneyInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder?: string }) {
+  const input = useRef<HTMLInputElement>(null);
+  const caret = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (caret.current !== null && input.current && document.activeElement === input.current) input.current.setSelectionRange(caret.current, caret.current);
+    caret.current = null;
+  }, [value]);
   return (
     <div className="relative">
       <span aria-hidden className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-sm text-muted-foreground">
         Rp
       </span>
-      <Input value={value} onChange={(event) => onChange(event.target.value)} inputMode="decimal" placeholder={placeholder} className="pl-9 text-right tabular-nums" />
+      <Input
+        ref={input}
+        value={value}
+        onChange={(event) => {
+          const raw = event.target.value;
+          const at = event.target.selectionStart ?? raw.length;
+          const next = groupMoney(raw);
+          // At the end the caret stays at the end (also after a comma just typed); elsewhere after the same number of digits.
+          caret.current = at >= raw.length ? next.length : caretAfterGrouping(next, raw.slice(0, at).replace(/\D/g, "").length);
+          onChange(next);
+        }}
+        inputMode="decimal"
+        maxLength={30}
+        placeholder={placeholder}
+        className="pl-9 text-right tabular-nums"
+      />
     </div>
   );
 }

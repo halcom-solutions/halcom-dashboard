@@ -51,7 +51,9 @@ test("Sales fill the calculation step by step, save it, and get the Project Appr
   await expect(cost).toContainText("Switch 24-port managed");
   await expect(cost).toContainText("3 Lot");
   await cost.getByLabel("Nama vendor").fill("PT Vendor Contoh");
-  await cost.getByLabel("Harga beli satuan").fill("3.600.000");
+  // A money field puts the thousands dots in while it is typed.
+  await cost.getByLabel("Harga beli satuan").pressSequentially("3600000");
+  await expect(cost.getByLabel("Harga beli satuan")).toHaveValue("3.600.000");
   await expect(cost).toContainText("Rp 10.800.000");
 
   // The summary shows the margin and the route; saving keeps everything.

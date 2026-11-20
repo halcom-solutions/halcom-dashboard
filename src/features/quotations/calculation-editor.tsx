@@ -12,7 +12,7 @@ import { calculate, MAX_COSTS, MAX_LINES, MAX_TERMS } from "@/domain/quotations/
 import type { ApprovalStepConfig, TaxSchemeConfig } from "@/domain/quotations/config";
 import { cn } from "@/lib/utils";
 import { readCalculationSheetAction, reviseCostsAction, saveCalculationAction } from "./actions";
-import { isBlankLine, plainDecimal, plainMoney, type EditorCost, type EditorLine, type EditorTerm } from "./calculation-input";
+import { isBlankLine, lineForForm, moneyFromStored, plainDecimal, plainMoney, type EditorCost, type EditorLine, type EditorTerm } from "./calculation-input";
 import { CogsStep, CostsAndTermsStep, Field, ItemsStep, SummaryStep, type StepContext } from "./calculation-steps";
 import { formatBp, formatCents } from "./format";
 
@@ -73,8 +73,8 @@ export function CalculationEditor(props: EditorProps) {
   const [taxSchemeKey, setTaxSchemeKey] = useState(props.taxScheme);
   const [optionLabel, setOptionLabel] = useState(props.optionLabel);
   const [rfqRequestId, setRfqRequestId] = useState(props.rfqRequestId);
-  const [lines, setLines] = useState<EditorLine[]>(props.lines.length || !editAll ? props.lines : [blankLine()]);
-  const [costs, setCosts] = useState<EditorCost[]>(props.costs);
+  const [lines, setLines] = useState<EditorLine[]>(props.lines.length || !editAll ? props.lines.map(lineForForm) : [blankLine()]);
+  const [costs, setCosts] = useState<EditorCost[]>(props.costs.map((row) => ({ ...row, amount: moneyFromStored(row.amount) })));
   const [terms, setTerms] = useState<EditorTerm[]>(props.terms.length || !editAll ? props.terms : [{ label: "Termin 1", sharePercent: "100", note: "" }]);
   // A save refreshes the page and mounts this editor anew, so the result is shown here, before that, and not left to the form status.
   const [saved, save, saving] = useActionState<FormState, FormData>(async (previous, data) => {
@@ -139,7 +139,7 @@ export function CalculationEditor(props: EditorProps) {
   const fillFromBoq = () => {
     if (!props.boq) return;
     if (counted.length > 0 && !window.confirm(`Ganti ${counted.length} item yang ada dengan ${props.boq.lines.length} item BOQ ${props.boq.code}? Harga jual dan harga beli diisi lagi.`)) return;
-    setLines(props.boq.lines.map((row) => ({ ...row })));
+    setLines(props.boq.lines.map(lineForForm));
     toast(`${props.boq.lines.length} item dari ${props.boq.code} dimuat. Isi harganya lalu simpan.`, true);
   };
   const importSheet = (file: File) => {
@@ -149,7 +149,7 @@ export function CalculationEditor(props: EditorProps) {
     startImport(async () => {
       const read = await readCalculationSheetAction(data);
       toast(read.message, read.ok);
-      if (read.ok) setLines(read.lines.map((row) => ({ ...row, costDescription: "" })));
+      if (read.ok) setLines(read.lines.map((row) => lineForForm({ ...row, costDescription: "" })));
       if (fileInput.current) fileInput.current.value = "";
     });
   };

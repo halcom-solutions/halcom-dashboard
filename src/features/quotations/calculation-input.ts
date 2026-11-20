@@ -36,3 +36,25 @@ export function shownMoney(value: string): string {
 
 /** A line with nothing that counts typed in: left out of the calculation and of what is saved. */
 export const isBlankLine = (row: EditorLine) => !row.description.trim() && !row.quantity.trim() && !row.sellPrice.trim() && !row.buyPrice.trim();
+
+/**
+ * Money as it is typed, regrouped: a dot between every three digits of the whole part, and after a comma at most two decimals
+ * ("1763000,5" -> "1.763.000,5"). Anything else typed is dropped.
+ */
+export function groupMoney(raw: string): string {
+  const [whole = "", ...rest] = raw.split(",");
+  const grouped = whole.replace(/\D/g, "").replace(/^0+(?=\d)/, "").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  if (rest.length === 0) return grouped;
+  return `${grouped || "0"},${rest.join("").replace(/\D/g, "").slice(0, 2)}`;
+}
+
+/** An amount as the server sends it ("1763000" or "1763000.50") in the form's way of writing it ("1.763.000" / "1.763.000,5"). */
+export function moneyFromStored(stored: string): string {
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(stored.trim());
+  if (!match) return stored;
+  const cents = (match[2] ?? "").replace(/0+$/, "");
+  return groupMoney(match[1]!) + (cents ? `,${cents}` : "");
+}
+
+/** A line from the server, a BOQ or a sheet with its prices written the form's way. */
+export const lineForForm = (row: EditorLine): EditorLine => ({ ...row, sellPrice: moneyFromStored(row.sellPrice), buyPrice: moneyFromStored(row.buyPrice) });

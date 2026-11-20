@@ -390,7 +390,7 @@ export function RequestForm({
                 </div>
               ) : null}
               {offersNew && !creating ? (
-                <Button type="button" variant="outline" size="sm" aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>
+                <Button type="button" size="sm" aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>
                   + Project baru
                 </Button>
               ) : null}

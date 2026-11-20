@@ -60,7 +60,7 @@ async function NewRequest({ searchParams }: Pick<PageProps<"/requests/new">, "se
           <CardDescription>
             {raisesRfqOnly ? (
               createsProject ? (
-                "Pilih project yang sudah ada, atau pilih Project baru bila belum terdaftar: cukup isi nama project, end user dan Sales. "
+                "Pilih project yang sudah ada. Bila belum terdaftar, klik + Project baru: cukup isi nama project, end user dan Sales. "
               ) : (
                 "Project dibuat oleh Sales atau SOA; pilih yang sudah ada. "
               )

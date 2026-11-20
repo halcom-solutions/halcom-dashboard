@@ -103,32 +103,39 @@ test("Purchasing cannot raise a BOQ or a PO", async ({ page }) => {
   await expect(page.getByLabel("Request type").locator("option")).toHaveText(["RFQ: RFQ request"]);
 });
 
-test("an RFQ whose project does not exist yet registers it with only its name, end user and Sales, in the same form for Purchasing and Superadmin", async ({ page }) => {
+test("an RFQ whose project does not exist yet registers it from the Project baru window, in the same form for Purchasing and Superadmin", async ({ page }) => {
   test.setTimeout(120_000);
-  // Superadmin sees the same RFQ form: the Sales PIC filter (no SOA PIC filter) and the choice of a new project.
+  // Superadmin sees the same RFQ form: an existing project by default, the Sales PIC filter (no SOA PIC filter) and Project baru.
   await signIn(page, "SUPERADMIN");
   await page.goto("/requests/new?type=RFQ");
   await expect(page.getByLabel("Request type")).toHaveValue("RFQ");
+  await expect(page.getByLabel("Project *")).toBeVisible();
   await expect(page.getByLabel("Filter Sales PIC (opsional)")).toBeVisible();
   await expect(page.getByLabel(/SOA PIC/)).toHaveCount(0);
-  await expect(page.getByText("Project baru", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "+ Project baru" })).toBeVisible();
   await signOut(page);
 
   await signIn(page, "PURCHASING");
   await page.goto("/requests/new");
   const name = `New via RFQ ${Date.now()}`;
+  const dialog = page.getByRole("dialog", { name: "Project baru" });
   await expect(async () => {
-    await page.getByText("Project baru", { exact: true }).click();
-    await expect(page.getByLabel("Project name")).toBeVisible({ timeout: 3000 });
+    await page.getByRole("button", { name: "+ Project baru" }).click();
+    await expect(dialog).toBeVisible({ timeout: 3000 });
   }).toPass({ timeout: 30_000 });
   // Nothing else of a project is asked: no source, description, target date or commercial fields.
+  await expect(dialog.getByLabel("Target closing")).toHaveCount(0);
+  await dialog.getByLabel("Project name").fill(name);
+  await dialog.getByLabel("End user").fill("PT RFQ Baru");
+  await dialog.getByLabel("Sales *").fill("Satrio");
+  await dialog.getByRole("listbox", { name: "sales options" }).getByRole("option", { name: /Satrio/ }).getByRole("button").click();
+  await dialog.getByRole("button", { name: "Pakai project ini" }).click();
+  await expect(dialog).toBeHidden();
+
+  // The form now names the new project instead of the project search; it is saved only with the RFQ.
+  await expect(page.getByTestId("request-new-project")).toContainText(name);
+  await expect(page.getByTestId("request-new-project")).toContainText("Sales: Satrio");
   await expect(page.getByLabel("Project *")).toHaveCount(0);
-  await expect(page.getByLabel("Target closing")).toHaveCount(0);
-  await page.getByLabel("Project name").fill(name);
-  await page.getByLabel("End user").fill("PT RFQ Baru");
-  const sales = page.getByLabel("Sales *");
-  await sales.fill("Satrio");
-  await page.getByRole("listbox", { name: "sales options" }).getByRole("option", { name: /Satrio/ }).getByRole("button").click();
   await page.getByLabel("Details").fill("Switch 24-port.");
   await page.getByRole("button", { name: "Create project and RFQ" }).click();
   await expect(page).toHaveURL(/\/projects\/HIT-PROJ-\d+\?request=RFQ-[A-Z0-9]+-\d{6,}/, { timeout: 20_000 });

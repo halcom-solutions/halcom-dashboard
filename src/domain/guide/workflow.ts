@@ -417,12 +417,12 @@ export const GUIDE_NODES: readonly GuideNode[] = [
     recipient: "Purchasing; Sales PIC dan SOA PIC proyek diberi tahu",
     guide: {
       where: "RFQ requests → New RFQ request",
-      prerequisites: ["Proyek sudah ada dan statusnya On Track, atau didaftarkan sendiri dengan pilihan Project baru di form yang sama."],
+      prerequisites: ["Proyek sudah ada dan statusnya On Track, atau didaftarkan sendiri lewat tombol + Project baru di form yang sama."],
       steps: [
         "Buka RFQ requests lalu pilih New RFQ request.",
-        "Opsional, pilih Sales PIC dan SOA PIC untuk mempersempit daftar, lalu pilih proyeknya. Sales PIC dan SOA PIC-nya muncul di sampingnya.",
+        "Pilih proyeknya (opsional, persempit dulu dengan filter Sales PIC). Sales PIC dan SOA PIC-nya muncul di bawahnya.",
         "Isi spesifikasi, kuantitas, merek, dan batasan yang sudah diketahui, lalu pilih Create request.",
-        "Proyeknya belum ada? Pilih Project baru: isi Project name, End user, dan Sales (salesperson terdaftar, atau Other lalu ketik nama penjualnya), lalu detail RFQ, dan pilih Create project and RFQ.",
+        "Proyeknya belum ada? Klik + Project baru: di jendela yang muncul isi Project name, End user, dan Sales (salesperson terdaftar, atau Other lalu ketik nama penjualnya), pilih Pakai project ini, lalu isi detail RFQ dan pilih Create project and RFQ.",
         "RFQ muncul di daftar RFQ Anda; Sales PIC melihatnya di Request center dan di dashboard-nya.",
       ],
       editable: ["Project", "Details", "Needed by"],

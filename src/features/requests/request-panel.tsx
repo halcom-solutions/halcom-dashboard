@@ -176,7 +176,7 @@ export async function RequestPanel({ request, viewer, inProject = false, openEma
               overdue={sla.state === "overdue"}
               pics={pics}
               currentPicId={request.picId ?? ""}
-              // A PIC with their own account (D-096) who starts an unassigned request takes it unless they pick someone else.
+              // A PIC with their own account (D-097) who starts an unassigned request takes it unless they pick someone else.
               suggestedPicId={viewer.pic && pics.some((pic) => pic.id === viewer.pic?.id) ? viewer.pic.id : ""}
             />
           </CardContent>

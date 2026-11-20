@@ -20,7 +20,7 @@ async function makePic(team: "SOA" | "PURCHASING", isActive = true) {
   return db.pic.create({ data: { team, name, nameKey: name.toLowerCase(), isActive } });
 }
 
-/** An SOA account linked to a new SOA PIC by an administrator, as the PICs page does (D-096). */
+/** An SOA account linked to a new SOA PIC by an administrator, as the PICs page does (D-097). */
 async function soaPicAccount() {
   const admin = await makeUser("ADMIN");
   const pic = await makePic("SOA");
@@ -30,7 +30,7 @@ async function soaPicAccount() {
   return { admin, pic, account };
 }
 
-describe("an SOA PIC gets their own account (D-096)", () => {
+describe("an SOA PIC gets their own account (D-097)", () => {
   it("links an active SOA account to an SOA PIC, audits it, and can take the link away again", async () => {
     const { admin, pic, account } = await soaPicAccount();
     expect((await db.user.findUniqueOrThrow({ where: { id: account.id } })).picId).toBe(pic.id);

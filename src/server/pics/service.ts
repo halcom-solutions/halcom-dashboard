@@ -60,7 +60,7 @@ export async function listPics(db: PrismaClient, viewer: Actor): Promise<PicReco
   }));
 }
 
-/** The accounts a PIC of this team may be linked to: active accounts of the team's role that are not another PIC already (D-096). */
+/** The accounts a PIC of this team may be linked to: active accounts of the team's role that are not another PIC already (D-097). */
 export async function listLinkableAccounts(db: PrismaClient, viewer: Actor, team: PicTeam): Promise<PicAccount[]> {
   if (!can(viewer.role, "pics.manage")) throw new Error("Forbidden: missing permission for this query.");
   if (!PIC_ACCOUNT_TEAMS.includes(team)) return [];
@@ -68,7 +68,7 @@ export async function listLinkableAccounts(db: PrismaClient, viewer: Actor, team
 }
 
 /**
- * Gives a PIC its own account, or takes it away with an empty `userId` (D-096). Nothing else changes: the requests and projects keep
+ * Gives a PIC its own account, or takes it away with an empty `userId` (D-097). Nothing else changes: the requests and projects keep
  * naming the PIC, so the account sees that work at once, and taking the link away hands it back to the team's shared login. The account
  * must be active, of the team's role, and not another PIC's; the team must be in the trial (SOA first).
  */
@@ -119,7 +119,7 @@ export async function linkPicAccount(db: PrismaClient, claimedActor: Actor, inpu
   }
 }
 
-/** How many live projects name this SOA PIC as their Technical PIC (SOA): a PIC account's own projects (D-096). */
+/** How many live projects name this SOA PIC as their Technical PIC (SOA): a PIC account's own projects (D-097). */
 export async function countPicProjects(db: PrismaClient, viewer: Actor, picId: string): Promise<number> {
   if (!can(viewer.role, "projects.view")) throw new Error("Forbidden: missing permission for this query.");
   return db.project.count({ where: { soaPicId: picId, deletedAt: null } });
@@ -246,7 +246,7 @@ export async function assignRequestPic(db: PrismaClient, claimedActor: Actor, in
     await tx.auditEvent.create({
       data: { actorId: actor.id, action: "request.pic_assigned", entityType: "request", entityId: request.id, before: { pic: request.pic?.name ?? null }, after: { pic: toName } },
     });
-    // A PIC with their own account (D-096) hears that the request is theirs now; one who takes it themself is not told.
+    // A PIC with their own account (D-097) hears that the request is theirs now; one who takes it themself is not told.
     if (toAccountId) {
       await notify(tx, { actorId: actor.id, recipientIds: [toAccountId], kind: "request.pic_assigned", title: `${request.code} diserahkan kepada Anda`, body: request.title, href: `/request/${request.code}` });
     }

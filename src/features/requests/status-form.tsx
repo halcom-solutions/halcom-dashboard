@@ -40,7 +40,7 @@ export function StatusForm({
   overdue: boolean;
   pics: readonly PicOption[];
   currentPicId: string;
-  /** The PIC chosen beforehand when the request has none: the viewer's own (D-096). */
+  /** The PIC chosen beforehand when the request has none: the viewer's own (D-097). */
   suggestedPicId?: string;
 }) {
   const router = useRouter();

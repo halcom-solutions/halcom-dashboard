@@ -8,7 +8,7 @@ export { SESSION_MAX_AGE_MS, SESSION_TTL_MS } from "./session-policy";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
-export type SessionUser = { id: string; name: string; email: string; role: Role; /** Set while a superadmin is viewing as this account: the superadmin. */ impersonatedBy?: { id: string; name: string }; /** Read from the database on every request; the sign-in results do not carry it. */ alsoManagement?: boolean; mustChangePassword: boolean; /** The PIC this account is (D-096), while the link still counts. */ pic?: { id: string; name: string } | null };
+export type SessionUser = { id: string; name: string; email: string; role: Role; /** Set while a superadmin is viewing as this account: the superadmin. */ impersonatedBy?: { id: string; name: string }; /** Read from the database on every request; the sign-in results do not carry it. */ alsoManagement?: boolean; mustChangePassword: boolean; /** The PIC this account is (D-097), while the link still counts. */ pic?: { id: string; name: string } | null };
 
 /** Only this hash is stored, so a database leak does not expose usable cookies. */
 export function hashSessionToken(token: string): string {

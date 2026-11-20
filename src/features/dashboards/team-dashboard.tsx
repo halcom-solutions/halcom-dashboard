@@ -50,7 +50,7 @@ export async function TeamDashboard({ viewer, team }: { viewer: SessionUser; tea
   // The technical team works on projects first: their numbers lead and the requests come below (Purchasing has only requests).
   const analytics = team === "SOA" ? await getPipelineAnalytics(getDb(), viewer) : null;
 
-  // A PIC with their own account (D-096) sees their own share first; the team's numbers follow unchanged.
+  // A PIC with their own account (D-097) sees their own share first; the team's numbers follow unchanged.
   const ownPic = viewer.pic && viewer.role === team ? viewer.pic : null;
   const own = ownPic ? summary.byPic.find((row) => row.picId === ownPic.id) : undefined;
   const ownLoad = ownPic ? metrics.workload.find((row) => row.assigneeId === ownPic.id) : undefined;

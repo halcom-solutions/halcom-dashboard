@@ -39,7 +39,7 @@ model User {
   mustChangePassword Boolean @default(false) @map("must_change_password")
   // The prefix of this person's request codes (RFQ-S-260001): one letter of the e-mail address, more if that letter is taken. Set once.
   codePrefix   String?  @unique @map("code_prefix")
-  // The PIC this account is (D-096, tried on SOA first): the person signs in as themself instead of through the team's shared login,
+  // The PIC this account is (D-097, tried on SOA first): the person signs in as themself instead of through the team's shared login,
   // and the requests and projects that name the PIC are theirs. One account per PIC; the PIC rows and their history are kept.
   picId        String?  @unique @map("pic_id") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)

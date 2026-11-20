@@ -361,7 +361,7 @@ test.describe("importing projects from Excel, paging the table and drilling down
   });
 });
 
-test("an SOA PIC gets their own account, sees their own work on the SOA dashboard, and Purchasing PICs stay on the shared login (D-096)", async ({ page }) => {
+test("an SOA PIC gets their own account, sees their own work on the SOA dashboard, and Purchasing PICs stay on the shared login (D-097)", async ({ page }) => {
   test.setTimeout(150_000);
   const id = tag();
   const email = `e2e-soa-pic-${id}@example.invalid`;

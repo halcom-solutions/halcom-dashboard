@@ -30,7 +30,7 @@ export async function renamePicAction(_previous: FormState, formData: FormData):
   return { ok: true, message: "Tersimpan." };
 }
 
-/** Gives a PIC its own account, or takes it away (D-096). The PIC's requests and projects follow the link. */
+/** Gives a PIC its own account, or takes it away (D-097). The PIC's requests and projects follow the link. */
 export async function linkPicAccountAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const user = await requireUser();
   const result = await linkPicAccount(getDb(), { id: user.id, role: user.role }, { picId: text(formData, "picId"), userId: text(formData, "userId") });

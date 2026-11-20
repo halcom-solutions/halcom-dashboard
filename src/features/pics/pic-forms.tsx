@@ -11,7 +11,7 @@ import { createPicAction, linkPicAccountAction, renamePicAction, setPicActiveAct
 type AccountOption = { id: string; name: string; email: string };
 
 /**
- * Which account is this PIC (D-096): the PIC then signs in as themself, and what names the PIC is theirs. "None" leaves the PIC on the
+ * Which account is this PIC (D-097): the PIC then signs in as themself, and what names the PIC is theirs. "None" leaves the PIC on the
  * team's shared login. The choices are the active accounts of the team's role that are no other PIC yet.
  */
 export function PicAccountForm({ picId, picName, current, choices }: { picId: string; picName: string; current: AccountOption | null; choices: AccountOption[] }) {
@@ -73,7 +73,7 @@ export function PicRow({
   isActive: boolean;
   openRequests: number;
   totalRequests: number;
-  /** The account form, for a team in the own-account trial (D-096). */
+  /** The account form, for a team in the own-account trial (D-097). */
   children?: ReactNode;
 }) {
   const [renamed, rename, renaming] = useActionState<FormState, FormData>(renamePicAction, null);

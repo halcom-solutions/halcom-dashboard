@@ -2,7 +2,7 @@ import type { Role } from "@/domain/access/roles";
 import type { PicTeam } from "./teams";
 
 /**
- * The teams whose PICs may have their own account (D-096). SOA is tried first (Adityo and Ibnu); Purchasing keeps its shared login
+ * The teams whose PICs may have their own account (D-097). SOA is tried first (Adityo and Ibnu); Purchasing keeps its shared login
  * until the trial is judged. Adding "PURCHASING" here is all it takes to open it to that team too.
  */
 export const PIC_ACCOUNT_TEAMS: readonly PicTeam[] = ["SOA"];

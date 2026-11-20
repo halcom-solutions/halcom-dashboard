@@ -294,3 +294,14 @@ describe("Jurnal sales quote body", () => {
     expect(body.sales_quote).not.toHaveProperty("email");
   });
 });
+
+describe("units of a line (Lot, Unit, Pack)", () => {
+  it("gives a configuration saved before units existed the default list, and checks a list that is there", () => {
+    const older: Record<string, unknown> = { ...DEFAULT_QUOTATION_CONFIG };
+    delete older["units"];
+    expect(checkQuotationConfig(older)).toMatchObject({ ok: true, value: { units: ["Lot", "Unit", "Pack"] } });
+    expect(checkQuotationConfig({ ...DEFAULT_QUOTATION_CONFIG, units: [" Meter ", "", "Roll"] })).toMatchObject({ ok: true, value: { units: ["Meter", "Roll"] } });
+    expect(checkQuotationConfig({ ...DEFAULT_QUOTATION_CONFIG, units: ["", "  "] })).toEqual({ ok: false, message: "Tambahkan paling sedikit satu satuan." });
+    expect(checkQuotationConfig({ ...DEFAULT_QUOTATION_CONFIG, units: ["Unit", "unit"] })).toEqual({ ok: false, message: "Satuan unit ada dua kali." });
+  });
+});

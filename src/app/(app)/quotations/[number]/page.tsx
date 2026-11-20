@@ -18,6 +18,7 @@ import { requireUser } from "@/server/auth/current-user";
 import { getQuotationDetail, listProjectRfqs, listTeamPics } from "@/server/quotations/queries";
 import { latestBoqLines } from "@/server/quotations/boq-items";
 import { listCostDistributors } from "@/server/quotations/service";
+import { listCustomerOptions } from "@/server/requests/queries";
 
 export default function QuotationPage({ params }: PageProps<"/quotations/[number]">) {
   return (
@@ -37,11 +38,12 @@ async function Quotation({ params }: Pick<PageProps<"/quotations/[number]">, "pa
   if (!detail) notFound();
   const { actions, calculation, rules } = detail;
   const mode = actions.has("editCalculation") ? "edit" : actions.has("editCosts") ? "costs" : "read";
-  const [distributors, rfqs, pics, boq] = await Promise.all([
+  const [distributors, rfqs, pics, boq, customers] = await Promise.all([
     mode === "read" ? Promise.resolve([]) : listCostDistributors(db, user),
     listProjectRfqs(db, detail.projectId),
     actions.has("approve") || actions.has("acknowledge") ? listTeamPics(db, user.role) : Promise.resolve([]),
     mode === "edit" ? latestBoqLines(db, detail.projectId) : Promise.resolve(null),
+    actions.has("editHeader") ? listCustomerOptions(db, user) : Promise.resolve([]),
   ]);
   const lines: EditorLine[] = detail.lines.map((row) => ({
     groupLabel: row.groupLabel ?? "",
@@ -68,6 +70,9 @@ async function Quotation({ params }: Pick<PageProps<"/quotations/[number]">, "pa
         <QuotationStatusBadge status={detail.status} waitingFor={detail.waitingFor} chosen={detail.chosenAt !== null} />
         <a className={link} href={`${pdf}/approval.pdf`} target="_blank" rel="noopener">
           PDF Approval
+        </a>
+        <a className={link} href={`${pdf}/approval.xlsx`} download>
+          Export Excel
         </a>
         <a className={link} href={`${pdf}/quotation.pdf`} target="_blank" rel="noopener">
           PDF Quotation
@@ -112,6 +117,36 @@ async function Quotation({ params }: Pick<PageProps<"/quotations/[number]">, "pa
         </CardContent>
       </Card>
 
+      <Card id="quotation" className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-base">
+            <h2>Data customer</h2>
+          </CardTitle>
+          <CardDescription>Data diri customer di quotation, mengikuti Sales Quote Jurnal. Item dan harganya diisi di Calculation di bawah.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <HeaderForm
+            key={detail.updatedAt.toISOString()}
+            quotationId={detail.id}
+            editable={actions.has("editHeader")}
+            total={formatCents(calculation.revenueWithPpn)}
+            customers={customers.map((customer) => customer.name)}
+            values={{
+              number: detail.number,
+              customerName: detail.customerName,
+              email: detail.email ?? "",
+              billingAddress: detail.billingAddress ?? "",
+              transactionDate: isoDay(detail.transactionDate),
+              expiryDate: isoDay(detail.expiryDate),
+              paymentTerm: detail.paymentTerm ?? (detail.terms.length === 1 ? (detail.terms[0]?.label ?? "") : ""),
+              customerReference: detail.customerReference ?? "",
+              message: detail.message ?? "",
+              memo: detail.memo ?? "",
+            }}
+          />
+        </CardContent>
+      </Card>
+
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="text-base">
@@ -119,10 +154,10 @@ async function Quotation({ params }: Pick<PageProps<"/quotations/[number]">, "pa
           </CardTitle>
           <CardDescription>
             {mode === "edit"
-              ? `Isi seperti sheet Project Approval. ${detail.boqRequest ? `Baris awal diambil dari BOQ ${detail.boqRequest.code}.` : ""}`
+              ? `Isi langkah demi langkah; angka dan jalur approval dihitung saat Anda mengetik. ${detail.boqRequest ? `Item awal diambil dari BOQ ${detail.boqRequest.code}. ` : ""}Format sheet Project Approval ada di Export Excel.`
               : mode === "costs"
-                ? "Giliran Anda: periksa sisi COGS. Harga beli, vendor, TOP dan catatan bisa diperbaiki; perubahan dicatat dan jalur persetujuan dihitung ulang."
-                : "Hanya baca."}
+                ? "Giliran Anda: periksa harga beli. Harga beli, vendor, TOP dan catatan bisa diperbaiki; perubahan dicatat dan jalur persetujuan dihitung ulang."
+                : "Hanya baca. Format sheet Project Approval ada di Export Excel."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -141,85 +176,67 @@ async function Quotation({ params }: Pick<PageProps<"/quotations/[number]">, "pa
             steps={rules.steps}
             distributors={distributors}
             rfqs={rfqs}
+            units={detail.config.units}
             boq={boq ? { code: boq.code, lines: boq.lines.map((row) => ({ ...row, costDescription: "" })) } : null}
           />
         </CardContent>
       </Card>
 
-      <Card id="quotation">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            <h2>Quotation untuk customer</h2>
+            <h2>Pratinjau quotation</h2>
           </CardTitle>
-          <CardDescription>Isian mengikuti Sales Quote Jurnal. Baris diambil dari calculation; ubah barisnya di calculation di atas.</CardDescription>
+          <CardDescription>Baris seperti di PDF Quotation untuk customer, diambil dari calculation yang tersimpan.</CardDescription>
         </CardHeader>
         <CardContent>
-          <HeaderForm
-            key={detail.updatedAt.toISOString()}
-            quotationId={detail.id}
-            editable={actions.has("editHeader")}
-            total={formatCents(calculation.revenueWithPpn)}
-            values={{
-              number: detail.number,
-              customerName: detail.customerName,
-              email: detail.email ?? "",
-              billingAddress: detail.billingAddress ?? "",
-              transactionDate: isoDay(detail.transactionDate),
-              expiryDate: isoDay(detail.expiryDate),
-              paymentTerm: detail.paymentTerm ?? (detail.terms.length === 1 ? (detail.terms[0]?.label ?? "") : ""),
-              customerReference: detail.customerReference ?? "",
-              message: detail.message ?? "",
-              memo: detail.memo ?? "",
-            }}
-            lines={
-              <div className="overflow-x-auto rounded-md border">
-                <table className="w-full min-w-[44rem] text-sm">
-                  <thead className="bg-muted/60 text-xs">
-                    <tr>
-                      <th className="px-2 py-1.5 text-left">Produk / Deskripsi</th>
-                      <th className="px-2 py-1.5 text-right">Kuantitas</th>
-                      <th className="px-2 py-1.5 text-left">Satuan</th>
-                      <th className="px-2 py-1.5 text-right">Harga satuan</th>
-                      <th className="px-2 py-1.5 text-left">Pajak</th>
-                      <th className="px-2 py-1.5 text-right">Jumlah</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.lines.map((row, index) => (
-                      <tr key={row.id} className="border-t align-top">
-                        <td className="px-2 py-1.5">
-                          <span className="text-xs text-muted-foreground">{categoryLabel(rules.categories, row.category)} · </span>
-                          {row.description}
-                          {row.specification ? <span className="block text-xs whitespace-pre-line text-muted-foreground">{row.specification}</span> : null}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{text(row.quantity)}</td>
-                        <td className="px-2 py-1.5">{row.unit}</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{formatDecimal(row.sellPrice)}</td>
-                        <td className="px-2 py-1.5">PPN</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{calculation.lines[index] ? formatCents(calculation.lines[index]!.revenue) : "–"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="border-t text-sm">
-                    <tr>
-                      <td colSpan={5} className="px-2 py-1 text-right">Subtotal</td>
-                      <td className="px-2 py-1 text-right tabular-nums">{formatCents(calculation.revenue)}</td>
-                    </tr>
-                    <tr>
-                      <td colSpan={5} className="px-2 py-1 text-right">PPN</td>
-                      <td className="px-2 py-1 text-right tabular-nums">{formatCents(calculation.ppn)}</td>
-                    </tr>
-                    <tr className="font-semibold">
-                      <td colSpan={5} className="px-2 py-1 text-right">Total</td>
-                      <td className="px-2 py-1 text-right tabular-nums">{formatCents(calculation.revenueWithPpn)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            }
-          />
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full min-w-[44rem] text-sm">
+              <thead className="bg-muted/60 text-xs">
+                <tr>
+                  <th className="px-2 py-1.5 text-left">Produk / Deskripsi</th>
+                  <th className="px-2 py-1.5 text-right">Kuantitas</th>
+                  <th className="px-2 py-1.5 text-left">Satuan</th>
+                  <th className="px-2 py-1.5 text-right">Harga satuan</th>
+                  <th className="px-2 py-1.5 text-left">Pajak</th>
+                  <th className="px-2 py-1.5 text-right">Jumlah</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.lines.map((row, index) => (
+                  <tr key={row.id} className="border-t align-top">
+                    <td className="px-2 py-1.5">
+                      <span className="text-xs text-muted-foreground">{categoryLabel(rules.categories, row.category)} · </span>
+                      {row.description}
+                      {row.specification ? <span className="block text-xs whitespace-pre-line text-muted-foreground">{row.specification}</span> : null}
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{text(row.quantity)}</td>
+                    <td className="px-2 py-1.5">{row.unit}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{formatDecimal(row.sellPrice)}</td>
+                    <td className="px-2 py-1.5">PPN</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{calculation.lines[index] ? formatCents(calculation.lines[index]!.revenue) : "–"}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="border-t text-sm">
+                <tr>
+                  <td colSpan={5} className="px-2 py-1 text-right">Subtotal</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{formatCents(calculation.revenue)}</td>
+                </tr>
+                <tr>
+                  <td colSpan={5} className="px-2 py-1 text-right">PPN</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{formatCents(calculation.ppn)}</td>
+                </tr>
+                <tr className="font-semibold">
+                  <td colSpan={5} className="px-2 py-1 text-right">Total</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{formatCents(calculation.revenueWithPpn)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </CardContent>
       </Card>
+
     </>
   );
 }

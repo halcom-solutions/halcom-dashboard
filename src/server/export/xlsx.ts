@@ -11,7 +11,7 @@ const DROPDOWN_LAST_ROW = 5001;
 export const XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 /** XML 1.0 cannot carry most control characters, even escaped; drop them, then escape what XML reserves. */
-function escapeXml(text: string): string {
+export function escapeXml(text: string): string {
   return text
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, "")
     .replaceAll("&", "&amp;")
@@ -21,7 +21,7 @@ function escapeXml(text: string): string {
 }
 
 /** Column letters for a zero-based index: 0 -> A, 25 -> Z, 26 -> AA. */
-function columnName(index: number): string {
+export function columnName(index: number): string {
   let name = "";
   for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) name = String.fromCharCode(65 + ((n - 1) % 26)) + name;
   return name;
@@ -85,6 +85,11 @@ export function toXlsx(sheetName: string, headers: readonly string[], rows: read
 ${validations.length > 0 ? `<dataValidations count="${validations.length}">${validations.join("")}</dataValidations>` : ""}
 </worksheet>`;
 
+  return zipWorkbook(sheetName, sheet, STYLES);
+}
+
+/** Packs one worksheet (its XML) and a style sheet into an .xlsx file. */
+export function zipWorkbook(sheetName: string, sheetXml: string, stylesXml: string): Uint8Array {
   const name = escapeXml(sheetName.replace(/[\\/?*[\]:]/g, " ").slice(0, 31) || "Sheet1");
   const files: Record<string, Uint8Array> = {
     "[Content_Types].xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -95,8 +100,8 @@ ${validations.length > 0 ? `<dataValidations count="${validations.length}">${val
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${name}" sheetId="1" r:id="rId1"/></sheets></workbook>`),
     "xl/_rels/workbook.xml.rels": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`),
-    "xl/styles.xml": strToU8(STYLES),
-    "xl/worksheets/sheet1.xml": strToU8(sheet),
+    "xl/styles.xml": strToU8(stylesXml),
+    "xl/worksheets/sheet1.xml": strToU8(sheetXml),
   };
   return zipSync(files, { level: 6 });
 }

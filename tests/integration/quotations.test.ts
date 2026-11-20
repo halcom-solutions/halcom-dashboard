@@ -1,11 +1,14 @@
 import { randomBytes } from "node:crypto";
+import { strFromU8, unzipSync } from "fflate";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Role } from "@/domain/access/roles";
 import { DEFAULT_QUOTATION_CONFIG, type QuotationConfig } from "@/domain/quotations/config";
+import { centsToNumber } from "@/domain/quotations/money";
 import { QUOTATION_NUMBER_PATTERN, sequenceOf } from "@/domain/quotations/numbering";
 import { getDb } from "@/lib/db";
 import { createDistributor } from "@/server/distributors/service";
 import { toXlsx } from "@/server/export/xlsx";
+import { approvalWorkbook, approvalWorkbookName } from "@/server/quotations/approval-xlsx";
 import { importRequestItems, latestBoqLines, readCalculationSheet } from "@/server/quotations/boq-items";
 import { getQuotationDetail, listQuotations } from "@/server/quotations/queries";
 import {
@@ -473,5 +476,30 @@ describe("configuration and numbering", () => {
     expect(await setNextQuotationSequence(db, admin, String(current + 5))).toEqual({ ok: true, changed: true });
     const { number } = await draftFor(await actorOf("SALES"));
     expect(sequenceOf(number)).toBe(current + 5);
+  });
+});
+
+describe("the Project Approval workbook (Excel export)", () => {
+  it("lays the calculation out like the sheet: information, revenue, terms, COGS, other costs, summary and approvals, with values not formulas", async () => {
+    const sales = await actorOf("SALES");
+    const { id, number } = await draftFor(sales);
+    expect((await saveCalculation(db, sales, calculationOf(id))).ok).toBe(true);
+    const detail = await getQuotationDetail(db, sales, number);
+    if (!detail) throw new Error("no detail");
+
+    const files = unzipSync(approvalWorkbook(detail));
+    const sheet = strFromU8(files["xl/worksheets/sheet1.xml"]!);
+    expect(Object.keys(files)).toEqual(expect.arrayContaining(["xl/workbook.xml", "xl/styles.xml", "[Content_Types].xml"]));
+    for (const heading of ["INFORMASI PROJECT", "1. REVENUE PER LINE ITEM (EXCL PPN)", "Termin Pembayaran Customer", "2. COGS PER LINE ITEM (EXCL PPN)", "3. BIAYA PROYEK LAINNYA", "4. RINGKASAN MARGIN PROJECT (EXCL PPN)", "5. APPROVAL"]) {
+      expect(sheet).toContain(`>${heading}<`);
+    }
+    expect(sheet).toContain(">Apacer SSD 512GB<");
+    expect(sheet).toContain(">Pengiriman<");
+    expect(sheet).toContain(`>${number} (Opsi 1)<`);
+    // The total revenue is the number the calculation gives, stored as a number, and nothing is a formula.
+    expect(sheet).toContain(`<v>${centsToNumber(detail.calculation.revenue)}</v>`);
+    expect(sheet).not.toContain("<f>");
+    expect(sheet).toMatch(/<mergeCell ref="A\d+:J\d+"\/>/);
+    expect(approvalWorkbookName(detail)).toBe(`${number}-approval-DRAFT.xlsx`);
   });
 });

@@ -73,7 +73,13 @@ export type QuotationConfig = {
   defaultTaxScheme: string;
   steps: ApprovalStepConfig[];
   document: DocumentConfig;
+  /** The units a line can be counted in (Lot, Unit, Pack…), offered in a searchable list on the calculation. */
+  units: string[];
 };
+
+/** The units offered when none were set: the ones the team quotes in. */
+export const DEFAULT_UNITS = ["Lot", "Unit", "Pack"];
+export const MAX_UNITS = 50;
 
 /** The two workbooks of November 2026, as configuration: PPN 12 % on 11/12, PPh 22 1.5 % on goods for WAPU, PPh 23 2 % on services. */
 export const DEFAULT_QUOTATION_CONFIG: QuotationConfig = {
@@ -146,6 +152,7 @@ export const DEFAULT_QUOTATION_CONFIG: QuotationConfig = {
     showTerms: true,
     showSignature: true,
   },
+  units: DEFAULT_UNITS,
 };
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -278,7 +285,21 @@ export function checkQuotationConfig(input: unknown): ConfigCheck {
     showSignature: bool(d["showSignature"], fallback.showSignature),
   };
 
-  return { ok: true, value: { categories, taxSchemes, defaultTaxScheme, steps, document } };
+  // A configuration saved before units existed has none: it gets the default list. A list that is there must not be empty.
+  let units = DEFAULT_UNITS;
+  if (Array.isArray(raw["units"])) {
+    units = [];
+    for (const item of raw["units"]) {
+      const unit = str(item, 30);
+      if (!unit) continue;
+      if (units.some((other) => other.toLowerCase() === unit.toLowerCase())) return fail(`Satuan ${unit} ada dua kali.`);
+      units.push(unit);
+    }
+    if (units.length === 0) return fail("Tambahkan paling sedikit satu satuan.");
+    if (units.length > MAX_UNITS) return fail(`Paling banyak ${MAX_UNITS} satuan.`);
+  }
+
+  return { ok: true, value: { categories, taxSchemes, defaultTaxScheme, steps, document, units } };
 }
 
 /** A stored configuration read back; anything unreadable falls back to the defaults, so a bad row cannot stop every quotation. */

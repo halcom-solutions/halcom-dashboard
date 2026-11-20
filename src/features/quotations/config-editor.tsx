@@ -285,6 +285,33 @@ export function QuotationConfigEditor({ config, users, editable, nextNumber }: {
           ) : null}
         </Box>
 
+        <Box title="Satuan" description="Pilihan satuan item di calculation (dropdown yang bisa dicari). Satuan yang sudah dipakai di sebuah item tetap tampil walau dihapus dari daftar.">
+          <div className="flex flex-wrap gap-2">
+            {value.units.map((unit, index) => (
+              <div key={index} className="flex items-center gap-1">
+                <Input
+                  value={unit}
+                  onChange={(e) => setValue((v) => ({ ...v, units: v.units.map((u, i) => (i === index ? e.target.value : u)) }))}
+                  disabled={off}
+                  maxLength={30}
+                  aria-label={`Satuan ${index + 1}`}
+                  className="w-32"
+                />
+                {editable && value.units.length > 1 ? (
+                  <Button type="button" variant="ghost" size="icon-sm" onClick={() => setValue((v) => ({ ...v, units: v.units.filter((_, i) => i !== index) }))} aria-label={`Hapus satuan ${unit || index + 1}`}>
+                    <Trash2 aria-hidden />
+                  </Button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          {editable ? (
+            <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => setValue((v) => ({ ...v, units: [...v.units, ""] }))}>
+              <Plus aria-hidden /> Tambah satuan
+            </Button>
+          ) : null}
+        </Box>
+
         <Box title="Tampilan quotation (PDF)" description="Kop, catatan dan kolom yang tampil di PDF quotation untuk customer.">
           <div className="grid gap-3 md:grid-cols-2">
             <Field label="Judul dokumen">

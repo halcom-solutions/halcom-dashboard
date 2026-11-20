@@ -227,9 +227,16 @@ function picOptions(projects: readonly ProjectOption[], idOf: (p: ProjectOption)
   return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
 }
 
+/** The Sales choice that registers the new project as Other (sales outside the list), with the name typed in. */
+const OTHER_SALES = "OTHER";
+
+/** For an RFQ whose project does not exist yet: the three things asked (project name, end user, Sales), then the RFQ as usual. */
+export type NewProjectChoices = { customers: readonly MasterOption[]; salesPeople: readonly { id: string; name: string }[] };
+
 /**
- * `picFilters` (Purchasing): the projects can be narrowed by their Sales PIC and their SOA PIC, and the chosen project's two PICs are
- * shown. Nothing here changes who the PICs are: they are the project's own, and the request reaches them through the project.
+ * `picFilters` (RFQ from Purchasing and Superadmin): the projects can be narrowed by their Sales PIC and their SOA PIC, and the chosen
+ * project's two PICs are shown. Nothing here changes who the PICs are: they are the project's own, and the request reaches them through
+ * the project. `newProject`: an RFQ can instead register its project in the same submit (createProjectAction, with the RFQ as its request).
  */
 export function RequestForm({
   projects,
@@ -238,6 +245,7 @@ export function RequestForm({
   types,
   submissionKey,
   picFilters = false,
+  newProject,
 }: {
   projects: ProjectOption[];
   defaultProjectId: string;
@@ -245,16 +253,22 @@ export function RequestForm({
   types: readonly RequestType[];
   submissionKey: string;
   picFilters?: boolean;
+  newProject?: NewProjectChoices;
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(createRequestAction, null);
+  const [newState, newAction, newPending] = useActionState<FormState, FormData>(createProjectAction, null);
   const [type, setType] = useState<RequestType>(defaultType);
   const [projectId, setProjectId] = useState(defaultProjectId);
   const [salesFilter, setSalesFilter] = useState(ANY_PIC);
   const [soaFilter, setSoaFilter] = useState(ANY_PIC);
+  const [wantsNew, setWantsNew] = useState(false);
+  const [sales, setSales] = useState("");
+  const creating = Boolean(newProject) && type === "RFQ" && wantsNew;
+  const filtering = picFilters && type === "RFQ" && !creating;
 
   const matches = (project: ProjectOption, sales: string, soa: string) =>
     (sales === ANY_PIC || (sales === NO_PIC ? !project.salesPicId : project.salesPicId === sales)) && (soa === ANY_PIC || (soa === NO_PIC ? !project.soaPicId : project.soaPicId === soa));
-  const visible = picFilters ? projects.filter((project) => matches(project, salesFilter, soaFilter)) : projects;
+  const visible = filtering ? projects.filter((project) => matches(project, salesFilter, soaFilter)) : projects;
   const chosen = projects.find((project) => project.id === projectId);
   // A filter that leaves out the chosen project clears the choice, so a hidden project can never be submitted by accident.
   function changeFilters(sales: string, soa: string) {
@@ -264,9 +278,68 @@ export function RequestForm({
   }
 
   return (
-    <form action={formAction} className="grid gap-4 sm:grid-cols-2">
+    <form action={creating ? newAction : formAction} className="grid gap-4 sm:grid-cols-2">
       <input type="hidden" name="submissionKey" value={submissionKey} />
-      {picFilters ? (
+      <Field id="request-type" label="Request type *" hint={`Masuk ke ${OWNING_TEAM_LABELS[type]}.`}>
+        <NativeSelect id="request-type" name={creating ? "requestType" : "type"} required value={type} onChange={(event) => setType(event.target.value as RequestType)}>
+          {types.map((option) => (
+            <option key={option} value={option}>
+              {option}: {REQUEST_TYPE_LABELS[option]}
+            </option>
+          ))}
+        </NativeSelect>
+      </Field>
+      {newProject && type === "RFQ" ? (
+        <fieldset className="flex flex-col gap-1.5 sm:self-end">
+          <legend className="mb-1.5 text-sm font-medium">Project</legend>
+          <div className="flex flex-wrap gap-2">
+            {([false, true] as const).map((option) => (
+              <label
+                key={String(option)}
+                className="cursor-pointer rounded-md border px-3 py-1.5 text-sm font-medium has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
+              >
+                <input type="radio" name="projectMode" checked={wantsNew === option} onChange={() => setWantsNew(option)} className="sr-only" />
+                {option ? "Project baru" : "Project sudah ada"}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : (
+        <div className="hidden sm:block" />
+      )}
+      {creating && newProject ? (
+        <>
+          <Field id="request-new-name" label="Project name *">
+            <Input id="request-new-name" name="name" required maxLength={120} placeholder="CCTV AI" />
+          </Field>
+          <Field id="request-new-company" label="End user *">
+            <CompanyInput id="request-new-company" name="endUserCompany" customers={newProject.customers} />
+          </Field>
+          <Field id="request-new-sales" label="Sales *" hint="Salesperson pemilik proyek, atau Other bila penjualnya di luar daftar. Ketik untuk mencari.">
+            <SearchSelect
+              id="request-new-sales"
+              name="salesChoice"
+              label="sales"
+              options={[...newProject.salesPeople, { id: OTHER_SALES, name: "Other (di luar daftar)" }]}
+              value={sales}
+              onChange={setSales}
+              required
+              placeholder="Cari salesperson"
+            />
+          </Field>
+          {/* Internal Sales for a listed salesperson; Other with the name typed in. The service checks the same rules. */}
+          <input type="hidden" name="sourceType" value={sales === OTHER_SALES ? "OTHER" : "INTERNAL_SALES"} />
+          {sales && sales !== OTHER_SALES ? <input type="hidden" name="salesOwnerId" value={sales} /> : null}
+          {sales === OTHER_SALES ? (
+            <Field id="request-new-sales-name" label={`${EXTERNAL_SOURCE_LABELS.externalSourceName} *`} hint="Nama sales person atau perusahaan penjualnya.">
+              <Input id="request-new-sales-name" name="externalSourceName" required maxLength={SOURCE_FIELD_LIMITS.externalSourceName} />
+            </Field>
+          ) : (
+            <div className="hidden sm:block" />
+          )}
+        </>
+      ) : null}
+      {filtering ? (
         <>
           <Field id="request-sales-pic" label="Sales PIC" hint="Opsional. Mempersempit daftar proyek ke yang dimiliki salesperson ini.">
             <NativeSelect id="request-sales-pic" value={salesFilter} onChange={(event) => changeFilters(event.target.value, soaFilter)}>
@@ -292,19 +365,21 @@ export function RequestForm({
           </Field>
         </>
       ) : null}
-      <Field id="request-project" label="Project *">
-        <SearchSelect
-          id="request-project"
-          name="projectId"
-          label="project"
-          options={visible.map((project) => ({ id: project.id, name: `${project.code} · ${project.endUserCompany}, ${project.name}` }))}
-          value={projectId}
-          onChange={setProjectId}
-          required
-          placeholder="Cari project: kode, perusahaan, atau nama"
-        />
-      </Field>
-      {picFilters ? (
+      {creating ? null : (
+        <Field id="request-project" label="Project *">
+          <SearchSelect
+            id="request-project"
+            name="projectId"
+            label="project"
+            options={visible.map((project) => ({ id: project.id, name: `${project.code} · ${project.endUserCompany}, ${project.name}` }))}
+            value={projectId}
+            onChange={setProjectId}
+            required
+            placeholder="Cari project: kode, perusahaan, atau nama"
+          />
+        </Field>
+      )}
+      {filtering ? (
         <div className="text-sm sm:self-end sm:pb-1.5" aria-live="polite" data-testid="request-project-pics">
           {chosen ? (
             <p>
@@ -317,28 +392,20 @@ export function RequestForm({
           )}
         </div>
       ) : null}
-      <Field id="request-type" label="Request type *" hint={`Masuk ke ${OWNING_TEAM_LABELS[type]}.`}>
-        <NativeSelect id="request-type" name="type" required value={type} onChange={(event) => setType(event.target.value as RequestType)}>
-          {types.map((option) => (
-            <option key={option} value={option}>
-              {option}: {REQUEST_TYPE_LABELS[option]}
-            </option>
-          ))}
-        </NativeSelect>
-      </Field>
       <div className="sm:col-span-2">
         <Field id="request-description" label="Details" hint="Apa yang dibutuhkan tim, dengan spesifikasi, kuantitas, merek, dan batasan yang sudah diketahui. Maksimal 4000 karakter.">
-          <Textarea id="request-description" name="description" maxLength={4000} className="min-h-32" />
+          {/* A new project takes the details as its RFQ's, not as the project description. */}
+          <Textarea id="request-description" name={creating ? "requestDescription" : "description"} maxLength={4000} className="min-h-32" />
         </Field>
       </div>
       <Field id="request-needed" label="Needed by" hint="Opsional.">
-        <DateInput id="request-needed" name="requiredBy" label="Needed by" />
+        <DateInput id="request-needed" name={creating ? "requestRequiredBy" : "requiredBy"} label="Needed by" />
       </Field>
       <div className="flex flex-col gap-2 sm:col-span-2">
-        <FormStatus state={state} />
+        <FormStatus state={creating ? newState : state} />
         <div>
-          <Button type="submit" disabled={pending || projects.length === 0}>
-            {pending ? "Submitting…" : "Create request"}
+          <Button type="submit" disabled={pending || newPending || (!creating && projects.length === 0)}>
+            {pending || newPending ? "Submitting…" : creating ? "Create project and RFQ" : "Create request"}
           </Button>
         </div>
       </div>

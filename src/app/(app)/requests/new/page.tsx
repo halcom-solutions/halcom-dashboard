@@ -11,7 +11,7 @@ import { notFound, redirect } from "next/navigation";
 import { can } from "@/domain/access/permissions";
 import { canCreateProjectWithSource } from "@/domain/projects/source";
 import { requireUser } from "@/server/auth/current-user";
-import { hasCompletedRfq, listActiveProjectOptions } from "@/server/requests/queries";
+import { hasCompletedRfq, listActiveProjectOptions, listCustomerOptions, listSalesPeopleOptions } from "@/server/requests/queries";
 
 export default function NewRequestPage({ searchParams }: PageProps<"/requests/new">) {
   return (
@@ -35,9 +35,12 @@ async function NewRequest({ searchParams }: Pick<PageProps<"/requests/new">, "se
   const wantedType = typeof query.type === "string" ? query.type.toUpperCase() : "";
   // A PO needs a completed RFQ on its project, so it is offered only for a project that has one.
   const poAllowed = wantedProject ? await hasCompletedRfq(getDb(), viewer, wantedProject.id) : false;
-  // Purchasing may register the project first when it does not exist yet (the New project form, RFQ already chosen).
-  const createsProject = raisesRfqOnly && canCreateProjectWithSource(viewer.role, "OTHER");
-  const types: readonly RequestType[] =raisesRfqOnly ? ["RFQ"] : !raisesAny ? ["BOQ"] : poAllowed ? REQUEST_TYPES : REQUEST_TYPES.filter((type) => type !== "PO");
+  const types: readonly RequestType[] = raisesRfqOnly ? ["RFQ"] : !raisesAny ? ["BOQ"] : poAllowed ? REQUEST_TYPES : REQUEST_TYPES.filter((type) => type !== "PO");
+
+  // Purchasing and Superadmin (who register projects for a salesperson) see the same RFQ form: an existing project, narrowed by its PICs,
+  // or a new one with only its name, end user and Sales, created together with the RFQ.
+  const createsProject = types.includes("RFQ") && can(viewer.role, "projects.assign-sales") && canCreateProjectWithSource(viewer.role, "OTHER");
+  const newProject = createsProject ? { customers: await listCustomerOptions(getDb(), viewer), salesPeople: await listSalesPeopleOptions(getDb(), viewer) } : undefined;
 
   return (
     <>
@@ -57,13 +60,7 @@ async function NewRequest({ searchParams }: Pick<PageProps<"/requests/new">, "se
           <CardDescription>
             {raisesRfqOnly ? (
               createsProject ? (
-                <>
-                  Pilih project yang sudah ada. Belum ada projectnya?{" "}
-                  <Link href={`${PROJECTS_PATH}/new?type=RFQ`} className="underline underline-offset-4">
-                    Buat project baru beserta RFQ-nya
-                  </Link>
-                  .{" "}
-                </>
+                "Pilih project yang sudah ada, atau pilih Project baru bila belum terdaftar: cukup isi nama project, end user dan Sales. "
               ) : (
                 "Project dibuat oleh Sales atau SOA; pilih yang sudah ada. "
               )
@@ -92,7 +89,8 @@ async function NewRequest({ searchParams }: Pick<PageProps<"/requests/new">, "se
             defaultType={isRequestType(wantedType) && types.includes(wantedType) ? wantedType : (types[0] ?? "BOQ")}
             types={types}
             submissionKey={crypto.randomUUID()}
-            picFilters={raisesRfqOnly}
+            picFilters={raisesRfqOnly || createsProject}
+            newProject={newProject}
           />
         </CardContent>
       </Card>

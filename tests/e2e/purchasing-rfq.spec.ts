@@ -97,10 +97,41 @@ test("Purchasing raises an RFQ for a project by its Sales PIC, and the Sales PIC
   await expect(page.getByRole("link", { name: code })).toBeVisible();
 });
 
-test("Purchasing cannot raise a BOQ or a PO, or a project", async ({ page }) => {
+test("Purchasing cannot raise a BOQ or a PO", async ({ page }) => {
   await signIn(page, "PURCHASING");
   await page.goto("/requests/new");
   await expect(page.getByLabel("Request type").locator("option")).toHaveText(["RFQ: RFQ request"]);
-  await page.goto("/projects/new");
-  await expect(page.getByText("Halaman tidak ditemukan")).toBeVisible();
+});
+
+test("an RFQ whose project does not exist yet registers it with only its name, end user and Sales, in the same form for Purchasing and Superadmin", async ({ page }) => {
+  test.setTimeout(120_000);
+  // Superadmin sees the same RFQ form: the PIC filters and the choice of a new project.
+  await signIn(page, "SUPERADMIN");
+  await page.goto("/requests/new?type=RFQ");
+  await expect(page.getByLabel("Request type")).toHaveValue("RFQ");
+  await expect(page.getByLabel("SOA PIC")).toBeVisible();
+  await expect(page.getByText("Project baru", { exact: true })).toBeVisible();
+  await signOut(page);
+
+  await signIn(page, "PURCHASING");
+  await page.goto("/requests/new");
+  const name = `New via RFQ ${Date.now()}`;
+  await expect(async () => {
+    await page.getByText("Project baru", { exact: true }).click();
+    await expect(page.getByLabel("Project name")).toBeVisible({ timeout: 3000 });
+  }).toPass({ timeout: 30_000 });
+  // Nothing else of a project is asked: no source, description, target date or commercial fields.
+  await expect(page.getByLabel("Project *")).toHaveCount(0);
+  await expect(page.getByLabel("Target closing")).toHaveCount(0);
+  await page.getByLabel("Project name").fill(name);
+  await page.getByLabel("End user").fill("PT RFQ Baru");
+  const sales = page.getByLabel("Sales *");
+  await sales.fill("Satrio");
+  await page.getByRole("listbox", { name: "sales options" }).getByRole("option", { name: /Satrio/ }).getByRole("button").click();
+  await page.getByLabel("Details").fill("Switch 24-port.");
+  await page.getByRole("button", { name: "Create project and RFQ" }).click();
+  await expect(page).toHaveURL(/\/projects\/HIT-PROJ-\d+\?request=RFQ-[A-Z0-9]+-\d{6,}/, { timeout: 20_000 });
+  await expect(page.getByText(name).first()).toBeVisible();
+  await expect(page.getByText("Switch 24-port.").first()).toBeVisible();
+  await expect(page.getByText("Satrio").first()).toBeVisible();
 });

@@ -1122,3 +1122,11 @@ The preview of each template (filled with sample data) is no longer a long block
 
 - **Recent accounts is gone.** The sign-in page lists no account and fills in nothing; the e-mail is always typed. `src/server/auth/recent-accounts.ts` and the "Remove from list" / "Forget all accounts" actions are deleted. A browser that still holds the old `recent_accounts` cookie loses it at its next sign-in or sign-out. What the browser keeps is the session cookie (an opaque token, HttpOnly) and the theme choice in local storage.
 - **Staying signed in.** `SESSION_TTL_HOURS` and `SESSION_MAX_HOURS` default to 720 (30 days) and accept 1 to 720: a person stays signed in on that browser for 30 days after signing in, used or not, unless they sign out; then the password is asked again. Sign-out, deactivation and a password change still end the session at once. A superadmin's entry into another account keeps its own one-hour limit (D-093).
+
+## D-096: One RFQ form for Purchasing and Superadmin, with a short new-project option (2026-11-20)
+
+**Asked by the owner.** Amends D-094 (Purchasing registered the project of an RFQ in the full New project form).
+
+- **Same form.** `/requests/new` with RFQ chosen looks the same for Purchasing and Superadmin (the roles that hold `projects.assign-sales` and may raise an RFQ): the Sales PIC and SOA PIC filters over the project list, the chosen project's PICs, then the RFQ details. An RFQ for a project that exists works as before.
+- **Project baru.** A choice "Project sudah ada / Project baru" next to the request type. A new project asks only for its name, the end user and Sales: a registered salesperson (an Internal Sales project they own) or Other (the name of the seller typed in). The same submit creates the project and its RFQ through `createProject` (no new server rule); source, contact, reference, description, target date and commercial fields are left for later on the project page.
+- The "New project + RFQ" button on the RFQ and PO lists and its guide link are gone: the request form covers it. `/projects/new` stays open to Purchasing.

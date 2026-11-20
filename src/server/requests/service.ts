@@ -17,6 +17,7 @@ import { OWNING_ROLE } from "@/domain/requests/types";
 import { jakartaDay } from "@/domain/requests/metrics";
 import { codePrefixFor, codePrefixForPic, nextProjectCode, nextRequestCode, nextRequestCodeForPic, recodeFor } from "./codes";
 import { ensureCustomer } from "./master-data";
+import { canLinkPicAccount } from "@/domain/pics/accounts";
 import { REVISION_REQUESTED_KIND, REVISION_STARTED_KIND } from "@/domain/notifications/kinds";
 import { createProjectSchema, createRequestSchema, handoverSchema, phaseSchema, requestDatesSchema, revisionSchema, statusChangeSchema, stopFlowSchema } from "./schemas";
 
@@ -44,7 +45,9 @@ function succeed<T>(value: T): WorkResult<T> {
 
 type Tx = Prisma.TransactionClient;
 
-type StoredActor = { id: string; role: Role; email: string; name: string };
+type ActorPic = { id: string; name: string; codePrefix: string | null };
+
+type StoredActor = { id: string; role: Role; email: string; name: string; /** The PIC this account is (D-096), when it is one and may act as it. */ pic: ActorPic | null };
 
 /**
  * Re-reads the actor from the database inside the transaction. A user who was deactivated or
@@ -53,9 +56,12 @@ type StoredActor = { id: string; role: Role; email: string; name: string };
 async function loadActor(tx: Tx, claimed: Actor): Promise<StoredActor | null> {
   const user = await tx.user.findUnique({
     where: { id: claimed.id },
-    select: { id: true, role: true, email: true, name: true, isActive: true },
+    select: { id: true, role: true, email: true, name: true, isActive: true, pic: { select: { id: true, name: true, codePrefix: true, team: true, isActive: true } } },
   });
-  return user?.isActive ? { id: user.id, role: user.role, email: user.email, name: user.name } : null;
+  if (!user?.isActive) return null;
+  // The link counts only while it still fits: an active PIC of the account's own team, in the trial.
+  const pic = user.pic && user.pic.isActive && canLinkPicAccount(user.pic.team, user.role) ? { id: user.pic.id, name: user.pic.name, codePrefix: user.pic.codePrefix } : null;
+  return { id: user.id, role: user.role, email: user.email, name: user.name, pic };
 }
 
 function audit(
@@ -92,7 +98,9 @@ type NewRequest = { type: RequestType; title: string; description: string | null
 
 /** Inserts a request with its first status-history row and audit event, inside the caller's transaction. */
 async function insertRequest(tx: Tx, actor: StoredActor, projectId: string, request: NewRequest, submissionKey: string | null) {
-  const code = await nextRequestCode(tx, request.type, actor, new Date());
+  // A PIC with their own account (D-096) raises in their PIC's name, as a request raised for that PIC through the shared login is:
+  // the code carries the PIC's letter (BOQ-A-260001) and the request names the PIC as who raised it.
+  const code = actor.pic ? await nextRequestCodeForPic(tx, request.type, actor.pic, new Date()) : await nextRequestCode(tx, request.type, actor, new Date());
   const created = await tx.request.create({
     data: {
       code,
@@ -102,6 +110,7 @@ async function insertRequest(tx: Tx, actor: StoredActor, projectId: string, requ
       description: request.description ?? "",
       requiredBy: request.requiredBy,
       requesterId: actor.id,
+      raisedByPicId: actor.pic?.id ?? null,
       submissionKey,
     },
   });
@@ -204,6 +213,8 @@ export async function createProject(db: PrismaClient, claimedActor: Actor, input
           sourceType,
           ...externalSource,
           salesOwnerId: sourceType === "INTERNAL_SALES" ? ownerId : null,
+          // An SOA PIC with their own account (D-096) who registers a project is its Technical PIC (SOA).
+          soaPicId: actor.role === "SOA" ? (actor.pic?.id ?? null) : null,
           customerId,
           submissionKey,
         },
@@ -308,7 +319,8 @@ export async function handOverToPurchasing(
       // SOA signs in with one shared account, so what SOA hands over is raised in the name of the SOA PIC who worked the BOQ (else the PIC who
       // raised it): the code carries that PIC's initial, not the account's, and the request shows the PIC as who raised it, as every request raised
       // for a PIC does. Without a PIC (or when Sales or an admin continues it) the person who clicks is the requester, as before.
-      const soaPicId = actor.role === "SOA" && source.type === "BOQ" ? (source.picId ?? source.raisedByPicId) : null;
+      // A PIC with their own account (D-096) who continues a BOQ nobody was given hands it over in their own name.
+      const soaPicId = actor.role === "SOA" && source.type === "BOQ" ? (source.picId ?? source.raisedByPicId ?? actor.pic?.id ?? null) : null;
       const soaPic = soaPicId ? await tx.pic.findUnique({ where: { id: soaPicId }, select: { id: true, name: true, codePrefix: true } }) : null;
       const code = soaPic ? await nextRequestCodeForPic(tx, targetType, soaPic, new Date()) : await nextRequestCode(tx, targetType, actor, new Date());
       // A handed-over request arrives In progress: the team does not have to accept it first.

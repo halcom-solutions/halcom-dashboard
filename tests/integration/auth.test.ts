@@ -51,6 +51,7 @@ describe("sessions", () => {
       role: "FINANCE",
       alsoManagement: false,
       mustChangePassword: false,
+      pic: null,
     });
     const stored = await db.session.findMany({ where: { userId: user.id } });
     expect(stored).toHaveLength(1);

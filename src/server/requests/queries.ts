@@ -762,9 +762,9 @@ export async function listRecentHandovers(db: PrismaClient, viewer: Viewer, limi
 
 const REQUEST_DETAIL = {
   project: true,
-  requester: { select: { name: true, role: true, email: true } },
+  requester: { select: { name: true, role: true, email: true, picId: true } },
   pic: { select: { name: true, isActive: true } },
-  // The SOA person who raised it, when SOA did (SOA signs in with one shared account).
+  // The SOA person who raised it, when SOA did: through the shared account, or their own (D-096: then requester.picId is this PIC).
   raisedByPic: { select: { name: true } },
   source: { select: { code: true } },
   handovers: { select: { code: true, type: true }, orderBy: { createdAt: "asc" } },

@@ -32,7 +32,7 @@ import { StatusBadge, TypeBadge } from "./status-badges";
  * (collapsed, at the end). It is the body of the request page and, for each request, of the project page, so a request is
  * handled in the context of its project. `inProject` leaves out the link back to the project.
  */
-export async function RequestPanel({ request, viewer, inProject = false, openEmail = false }: { request: RequestDetail; viewer: { id: string; role: Role }; inProject?: boolean; openEmail?: boolean }) {
+export async function RequestPanel({ request, viewer, inProject = false, openEmail = false }: { request: RequestDetail; viewer: { id: string; role: Role; pic?: { id: string } | null }; inProject?: boolean; openEmail?: boolean }) {
   const mayWork = canWorkOn(viewer.role, request.type);
   // Where this person can move the request: the flow, and for a superadmin any other status.
   const moves = movesFor(request.status, request.type, can(viewer.role, "requests.override-status"));
@@ -94,7 +94,13 @@ export async function RequestPanel({ request, viewer, inProject = false, openEma
                 </Link>
               </Fact>
             )}
-            <Fact label="Requested by">{request.raisedByPic ? `${request.raisedByPic.name} (SOA PIC, through the shared SOA login)` : request.requester.name}</Fact>
+            <Fact label="Requested by">
+              {request.raisedByPic
+                ? request.requester.picId === request.raisedByPicId
+                  ? `${request.raisedByPic.name} (SOA PIC)`
+                  : `${request.raisedByPic.name} (SOA PIC, through the shared SOA login)`
+                : request.requester.name}
+            </Fact>
             <Fact label="Needed by">{formatDateOnly(request.requiredBy)}</Fact>
             <Fact label="Created">{formatDay(request.createdAt)}</Fact>
             {request.completedAt ? <Fact label="Completed">{formatDay(request.completedAt)}</Fact> : null}
@@ -170,6 +176,8 @@ export async function RequestPanel({ request, viewer, inProject = false, openEma
               overdue={sla.state === "overdue"}
               pics={pics}
               currentPicId={request.picId ?? ""}
+              // A PIC with their own account (D-096) who starts an unassigned request takes it unless they pick someone else.
+              suggestedPicId={viewer.pic && pics.some((pic) => pic.id === viewer.pic?.id) ? viewer.pic.id : ""}
             />
           </CardContent>
         </Card>

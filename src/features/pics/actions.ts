@@ -5,7 +5,7 @@ import type { FormState } from "@/components/ui/form-status";
 import { PICS_PATH } from "@/features/navigation/links";
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/server/auth/current-user";
-import { createPic, updatePic } from "@/server/pics/service";
+import { createPic, linkPicAccount, updatePic } from "@/server/pics/service";
 
 const text = (formData: FormData, name: string) => {
   const value = formData.get(name);
@@ -28,6 +28,16 @@ export async function renamePicAction(_previous: FormState, formData: FormData):
   if (!result.ok) return { ok: false, message: result.message };
   revalidatePath(PICS_PATH);
   return { ok: true, message: "Tersimpan." };
+}
+
+/** Gives a PIC its own account, or takes it away (D-096). The PIC's requests and projects follow the link. */
+export async function linkPicAccountAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser();
+  const result = await linkPicAccount(getDb(), { id: user.id, role: user.role }, { picId: text(formData, "picId"), userId: text(formData, "userId") });
+  if (!result.ok) return { ok: false, message: result.message };
+  revalidatePath(PICS_PATH);
+  const { picName, account } = result.value;
+  return { ok: true, message: account ? `Akun ${account.name} sekarang menjadi PIC ${picName}.` : `${picName} tidak lagi punya akun sendiri; pekerjaannya kembali ke akun bersama.` };
 }
 
 /** Turns a PIC on or off. Requests and history that mention it are kept. */

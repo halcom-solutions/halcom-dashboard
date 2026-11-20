@@ -361,6 +361,53 @@ test.describe("importing projects from Excel, paging the table and drilling down
   });
 });
 
+test("an SOA PIC gets their own account, sees their own work on the SOA dashboard, and Purchasing PICs stay on the shared login (D-096)", async ({ page }) => {
+  test.setTimeout(150_000);
+  const id = tag();
+  const email = `e2e-soa-pic-${id}@example.invalid`;
+  const picName = `Pilot ${id}`;
+
+  await signIn(page, "SUPERADMIN");
+  await page.goto("/admin/users");
+  await page.getByLabel("Name", { exact: true }).fill(`E2E Pilot ${id}`);
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Role", { exact: true }).selectOption("SOA");
+  await page.getByLabel("Initial password").fill("e2e-created-user-pass-1");
+  await page.getByRole("button", { name: "Create user" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "User created." })).toBeVisible();
+
+  await page.goto("/admin/pics");
+  const soaCard = card(page, "SOA PICs");
+  await expect(async () => {
+    await soaCard.getByLabel("New SOA PIC").fill(picName);
+    await soaCard.getByRole("button", { name: "Add PIC" }).click();
+    await expect(soaCard.getByLabel(`Name of ${picName}`)).toBeVisible({ timeout: 4000 });
+  }).toPass({ timeout: 30_000 });
+  // Only SOA PICs can be given an account in the trial.
+  await expect(card(page, "Purchasing PICs").getByLabel(/^Account of /)).toHaveCount(0);
+
+  // The success message is a toast; the saved link shows as the chosen account once the page is loaded again.
+  const account = soaCard.getByLabel(`Account of ${picName}`);
+  await expect(async () => {
+    await account.selectOption({ label: `E2E Pilot ${id} (${email})` });
+    await soaCard.getByRole("listitem").filter({ has: page.getByLabel(`Name of ${picName}`) }).getByRole("button", { name: "Save account" }).click();
+    await page.waitForTimeout(1500);
+    await page.reload();
+    await expect(account).not.toHaveValue("", { timeout: 4000 });
+  }).toPass({ timeout: 45_000 });
+
+  // Inside that account the SOA dashboard opens with the PIC's own numbers.
+  await page.goto("/admin/users");
+  await page.getByRole("button", { name: `Edit ${email}` }).click();
+  await expect(async () => {
+    await page.getByRole("button", { name: `Masuk sebagai ${email}` }).click();
+    await expect(page.getByTestId("impersonation-banner")).toBeVisible({ timeout: 8000 });
+  }).toPass({ timeout: 45_000 });
+  await page.goto("/dashboard/soa");
+  await expect(page.getByRole("heading", { name: `Pekerjaan saya (${picName})` })).toBeVisible();
+  await expect(page.getByRole("region", { name: "My work" }).getByText("My projects")).toBeVisible();
+});
+
 test("a superadmin gives a Sales user the Management view; an admin has no such section", async ({ page, browser }) => {
   test.setTimeout(120_000);
   const email = `e2e-director-${Date.now()}@example.invalid`;

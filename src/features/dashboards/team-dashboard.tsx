@@ -10,6 +10,7 @@ import { HANDOFFS_PATH, PROJECTS_PATH, REQUESTS_PATH } from "@/features/navigati
 import { getDb } from "@/lib/db";
 import type { SessionUser } from "@/server/auth/session-store";
 import { getTeamDashboard, listOverdueRequests } from "@/server/dashboards/metrics";
+import { countPicProjects } from "@/server/pics/service";
 import { getPipelineAnalytics } from "@/server/projects/analytics";
 import { CollapsibleSection } from "./collapsible-section";
 import { ProjectMixCharts } from "./pipeline-charts";
@@ -48,6 +49,24 @@ export async function TeamDashboard({ viewer, team }: { viewer: SessionUser; tea
 
   // The technical team works on projects first: their numbers lead and the requests come below (Purchasing has only requests).
   const analytics = team === "SOA" ? await getPipelineAnalytics(getDb(), viewer) : null;
+
+  // A PIC with their own account (D-096) sees their own share first; the team's numbers follow unchanged.
+  const ownPic = viewer.pic && viewer.role === team ? viewer.pic : null;
+  const own = ownPic ? summary.byPic.find((row) => row.picId === ownPic.id) : undefined;
+  const ownLoad = ownPic ? metrics.workload.find((row) => row.assigneeId === ownPic.id) : undefined;
+  const ownProjects = ownPic && team === "SOA" ? await countPicProjects(getDb(), viewer, ownPic.id) : null;
+  const mine = ownPic ? (
+    <section aria-label="My work" className="mb-6">
+      <h2 className="mb-2 text-sm font-medium">Pekerjaan saya ({ownPic.name})</h2>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        {ownProjects !== null ? <StatTile label="My projects" value={ownProjects} href={`${PROJECTS_PATH}?soapic=${ownPic.id}`} note="Project dengan Anda sebagai Technical PIC (SOA)" /> : null}
+        <StatTile label={`My ${copy.noun}`} value={own?.total ?? 0} href={to(`assignee=${ownPic.id}`)} note="Semua request yang diserahkan kepada Anda" />
+        <StatTile label="My open" value={ownLoad?.open ?? 0} href={to(`assignee=${ownPic.id}&status=open`)} note="Belum Completed atau Cancelled" />
+        <StatTile label="My on going" value={own?.onGoing ?? 0} href={to(`assignee=${ownPic.id}&status=IN_PROGRESS`)} note="Sedang In progress" />
+        <StatTile label="My overdue" value={ownLoad?.overdue ?? 0} href={to(`assignee=${ownPic.id}&sla=overdue`)} note="Melewati batas SLA" />
+      </div>
+    </section>
+  ) : null;
 
   const requests = (
     <>
@@ -166,7 +185,7 @@ export async function TeamDashboard({ viewer, team }: { viewer: SessionUser; tea
             <CardTitle className="text-base">
               <h2>Workload by assignee</h2>
             </CardTitle>
-            <CardDescription>Request terbuka per PIC. PIC bukan akun login.</CardDescription>
+            <CardDescription>Request terbuka per PIC.</CardDescription>
           </CardHeader>
           <CardContent>
             {metrics.workload.length === 0 ? (
@@ -268,6 +287,7 @@ export async function TeamDashboard({ viewer, team }: { viewer: SessionUser; tea
           {copy.emptyText}
         </p>
       ) : null}
+      {mine}
 
       {analytics ? (
         <>

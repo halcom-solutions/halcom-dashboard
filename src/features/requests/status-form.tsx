@@ -28,6 +28,7 @@ export function StatusForm({
   overdue,
   pics,
   currentPicId,
+  suggestedPicId = "",
 }: {
   requestId: string;
   type: RequestType;
@@ -39,6 +40,8 @@ export function StatusForm({
   overdue: boolean;
   pics: readonly PicOption[];
   currentPicId: string;
+  /** The PIC chosen beforehand when the request has none: the viewer's own (D-096). */
+  suggestedPicId?: string;
 }) {
   const router = useRouter();
   const id = useId();
@@ -46,7 +49,7 @@ export function StatusForm({
   const [error, setError] = useState<string | null>(null);
   const [to, setTo] = useState<RequestStatus | "">("");
   const [reason, setReason] = useState("");
-  const [picId, setPicId] = useState(currentPicId);
+  const [picId, setPicId] = useState(currentPicId || suggestedPicId);
 
   // The toast comes from here, not from the form's own result: once the move is saved the page is rendered again and this form is mounted
   // anew (it is keyed by the status), so a result handed to the old form would never be shown.

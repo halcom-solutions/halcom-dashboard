@@ -23,6 +23,7 @@ describe("what each operational role may do", () => {
         "projects.create.external",
         "projects.edit.principal",
         "projects.view",
+        "requests.continue.rfq",
         "requests.create.rfq",
         "requests.view",
         "requests.work.purchasing",

@@ -83,6 +83,7 @@ export const PERMISSION_CATALOG: Record<Permission, Entry> = {
   "requests.work.boq": { category: "request-workflow", label: "Work BOQ requests", description: "Ubah status request BOQ dan serahkan ke PIC (SOA)." },
   "requests.work.purchasing": { category: "request-workflow", label: "Work RFQ & PO requests", description: "Ubah status request RFQ dan PO dan serahkan ke PIC (Purchasing)." },
   "requests.handover": { category: "request-workflow", label: "Continue the request flow", description: "Putuskan langkah setelah BOQ atau RFQ selesai (BOQ ke Purchasing sebagai RFQ, RFQ ke PO) di project mana pun, bukan hanya miliknya." },
+  "requests.continue.rfq": { category: "request-workflow", label: "Continue an RFQ to a PO", description: "Putuskan langkah setelah RFQ selesai (lanjutkan sebagai PO, atau tidak dilanjutkan) di project mana pun. Bawaan: Purchasing. Hanya berlaku untuk RFQ; BOQ ke RFQ tetap lewat Continue the request flow." },
   "handoffs.view": { category: "request-workflow", label: "View Purchasing handoffs", description: "Buka halaman Purchasing handoff." },
 
   "masterdata.manage": { category: "master-data", label: "Manage master data", description: "Kelola principal, solution category, dan customer, lalu pakai untuk mengklasifikasikan project." },

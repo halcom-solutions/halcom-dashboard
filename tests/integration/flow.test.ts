@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
+import { clearPermissionOverrides, setPermissionOverrides } from "@/domain/access/permissions";
 import type { Role } from "@/domain/access/roles";
 import { PO_NEEDS_RFQ } from "@/domain/requests/status";
 import { getDb } from "@/lib/db";
@@ -50,6 +51,34 @@ describe("the flow BOQ -> RFQ -> PO", () => {
     const po = await handOverToPurchasing(db, sales, { sourceId: rfq.value.id, targetType: "PO" });
     expect(po).toMatchObject({ ok: true, value: { created: true } });
     await expect(db.request.findUniqueOrThrow({ where: { id: po.ok ? po.value.id : "" } })).resolves.toMatchObject({ type: "PO", sourceRequestId: rfq.value.id });
+  });
+
+  it("lets Purchasing continue its completed RFQ as a PO, records a refusal, and stops when the Superadmin takes the right away", async () => {
+    const [sales, purchasing] = await Promise.all([actorOf("SALES"), actorOf("PURCHASING")]);
+    const project = await makeProject(sales);
+    const rfq = await completedRequest(sales, purchasing, project.id, "RFQ");
+    const other = await completedRequest(sales, purchasing, (await makeProject(sales)).id, "RFQ");
+
+    try {
+      expect(await stopFlow(db, purchasing, { sourceId: other.id, note: "Customer menunda" })).toEqual({ ok: true, value: { code: other.code } });
+      const po = await handOverToPurchasing(db, purchasing, { sourceId: rfq.id, targetType: "PO", note: "Lanjut" });
+      expect(po).toMatchObject({ ok: true, value: { created: true } });
+      if (!po.ok) return;
+      await expect(db.request.findUniqueOrThrow({ where: { id: po.value.id } })).resolves.toMatchObject({ type: "PO", status: "IN_PROGRESS", sourceRequestId: rfq.id, requesterId: purchasing.id });
+      // The same click again returns the PO that exists.
+      expect(await handOverToPurchasing(db, purchasing, { sourceId: rfq.id, targetType: "PO" })).toMatchObject({ ok: true, value: { id: po.value.id, created: false } });
+
+      // Purchasing never decides a BOQ, even holding the RFQ right.
+      const boq = await completedRequest(sales, await actorOf("SOA"), project.id, "BOQ");
+      expect(await handOverToPurchasing(db, purchasing, { sourceId: boq.id, targetType: "RFQ" })).toMatchObject({ ok: false, code: "FORBIDDEN" });
+
+      // The Superadmin switches the right off in the permission editor: the same call is refused.
+      setPermissionOverrides([{ role: "PURCHASING", permission: "requests.continue.rfq", granted: false }]);
+      expect(await handOverToPurchasing(db, purchasing, { sourceId: other.id, targetType: "PO" })).toMatchObject({ ok: false, code: "FORBIDDEN" });
+      expect(await stopFlow(db, purchasing, { sourceId: other.id })).toMatchObject({ ok: false, code: "FORBIDDEN" });
+    } finally {
+      clearPermissionOverrides();
+    }
   });
 
   it("refuses everyone who does not own the decision: another salesperson, Purchasing for a BOQ, SOA for an RFQ", async () => {

@@ -47,6 +47,7 @@ both call `can()`; the menu is derived from it, and
 | `requests.work.boq` (change status of BOQ requests) | ✔ | ✔ | – | ✔ | – | – | – |
 | `requests.work.purchasing` (change status of RFQ and PO requests) | ✔ | ✔ | – | – | ✔ | – | – |
 | `requests.handover` (hand a completed BOQ over to Purchasing as RFQ or PO) | ✔ | ✔ | – | ✔ | – | – | – |
+| `requests.continue.rfq` (continue a completed RFQ as a PO, or decide not to; RFQ only; the Superadmin can switch it off or grant it to another role, D-097) | ✔ | ✔ (via `requests.handover`) | – | – | ✔ | – | – |
 | `projects.edit.technical` (technical fields; each change logged with from and to) | ✔ | ✔ | – | ✔ | – | – | – |
 | `projects.post-update` (add current-action and next-action entries to the project feed) | ✔ | ✔ | – | ✔ | – | – | – |
 | `projects.create.external` (register a project whose sales is Other; Purchasing to raise its RFQ, D-094) | ✔ | ✔ | ✔ | ✔ | ✔ | – | – |

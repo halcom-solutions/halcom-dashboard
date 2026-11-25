@@ -6,7 +6,7 @@ import type { RequestStatus } from "@/domain/requests/status";
 import { slaOf } from "@/domain/requests/sla";
 import { getTeamSetting } from "@/server/settings/team-settings";
 import { allowedTransitions, canHandOver, canTransition, isRetired, nextRequestType, PO_NEEDS_RFQ, reasonRequired, REQUEST_STATUS_LABELS } from "@/domain/requests/status";
-import { canContinueFlow, workPermission } from "@/domain/requests/access";
+import { canContinueFlow, mayDecideFlow, workPermission } from "@/domain/requests/access";
 import { parseCommercialValue } from "@/domain/projects/commercial";
 import { z } from "zod";
 import { canCreateProjectWithSource, canRaiseRequestOn, canRaiseWithNewProject, mustChooseSalesOwner, normaliseSource, salesActsOn } from "@/domain/projects/source";
@@ -264,7 +264,8 @@ export async function createRequest(db: PrismaClient, claimedActor: Actor, input
 
 /**
  * Continues the flow BOQ -> RFQ -> PO: a completed BOQ becomes an RFQ, a completed RFQ becomes a PO (brief §6.1). Completing a
- * request never implies the next step; someone decides: the Sales owner of the project, an admin, or SOA after a BOQ. A BOQ can
+ * request never implies the next step; someone decides: the Sales owner of the project, an admin, SOA after a BOQ, or Purchasing
+ * after an RFQ (`requests.continue.rfq`, which the Superadmin can switch off). A BOQ can
  * be skipped by starting with an RFQ. Idempotent: the database allows one request of each type per source request, so a
  * repeated click returns the request that already exists. Continuing undoes an earlier "do not continue".
  */
@@ -275,7 +276,7 @@ export async function handOverToPurchasing(
 ): Promise<WorkResult<CreatedRecord>> {
   const parsed = handoverSchema.safeParse(input);
   if (!parsed.success) return fail("INVALID_INPUT", parsed.error.issues[0]?.message);
-  if (!can(claimedActor.role, "requests.handover") && claimedActor.role !== "SALES") return fail("FORBIDDEN");
+  if (!mayDecideFlow(claimedActor.role)) return fail("FORBIDDEN");
   const { sourceId, targetType, note, requiredBy } = parsed.data;
 
   const existing = () =>
@@ -364,7 +365,7 @@ export async function handOverToPurchasing(
 export async function stopFlow(db: PrismaClient, claimedActor: Actor, input: unknown): Promise<WorkResult<{ code: string }>> {
   const parsed = stopFlowSchema.safeParse(input);
   if (!parsed.success) return fail("INVALID_INPUT", parsed.error.issues[0]?.message);
-  if (!can(claimedActor.role, "requests.handover") && claimedActor.role !== "SALES") return fail("FORBIDDEN");
+  if (!mayDecideFlow(claimedActor.role)) return fail("FORBIDDEN");
   const { sourceId, note } = parsed.data;
 
   return db.$transaction(async (tx) => {

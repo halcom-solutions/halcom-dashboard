@@ -36,13 +36,18 @@ export const ROLE_GUIDES: Record<Role, RoleGuide> = {
       "Proyek yang didaftarkan untuk salesperson atau dari sumber lain, serta import proyek",
       "Master data principal dan solution",
     ],
-    cannot: ["Field komersial (Sales)", "Status RFQ dan PO (Purchasing)", "Keputusan untuk melanjutkan RFQ yang sudah selesai ke PO"],
+    cannot: ["Field komersial (Sales)", "Status RFQ dan PO (Purchasing)", "Keputusan untuk melanjutkan RFQ yang sudah selesai ke PO (Sales, Purchasing, atau Admin)"],
   },
   PURCHASING: {
-    summary: "Menerima request RFQ, mengajukan RFQ untuk proyek yang sudah ada, menjaga progres quotation tetap terbaru, dan memproses PO.",
+    summary: "Menerima request RFQ, mengajukan RFQ untuk proyek yang sudah ada, menjaga progres quotation tetap terbaru, meneruskan RFQ yang selesai ke PO, dan memproses PO.",
     reads: [EVERY_PROJECT, "Purchasing dashboard, RFQ requests, dan PO requests"],
-    edits: ["Status RFQ dan PO", "PIC RFQ atau PO", "Request RFQ baru untuk proyek yang sudah ada (diberitahukan ke Sales PIC dan SOA PIC proyek)"],
-    cannot: ["Membuat proyek", "Mengajukan request BOQ atau PO", "Mengedit field proyek", "Mengubah status BOQ", "Memutuskan kelanjutan RFQ yang sudah selesai"],
+    edits: [
+      "Status RFQ dan PO",
+      "PIC RFQ atau PO",
+      "Request RFQ baru untuk proyek yang sudah ada (diberitahukan ke Sales PIC dan SOA PIC proyek)",
+      "Keputusan untuk meneruskan RFQ yang sudah selesai ke PO (hak Continue an RFQ to a PO, bisa dicabut Superadmin)",
+    ],
+    cannot: ["Membuat proyek", "Mengajukan request BOQ atau PO baru dari nol", "Mengedit field proyek", "Mengubah status BOQ", "Memutuskan kelanjutan BOQ ke RFQ"],
   },
   FINANCE: {
     summary: "Meninjau nilai proyek serta referensi quotation dan PO untuk pencocokan. Hanya baca.",

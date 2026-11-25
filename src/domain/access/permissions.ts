@@ -60,7 +60,8 @@ export type Permission =
   | "requests.email"
   | "requests.work.boq"
   | "requests.work.purchasing"
-  | "requests.handover";
+  | "requests.handover"
+  | "requests.continue.rfq";
 
 export const ALL_PERMISSIONS: readonly Permission[] = [
   "dashboard.shared.view",
@@ -117,6 +118,7 @@ export const ALL_PERMISSIONS: readonly Permission[] = [
   "requests.work.boq",
   "requests.work.purchasing",
   "requests.handover",
+  "requests.continue.rfq",
 ];
 
 /** Permissions a role may never lose or gain through the permission editor, so the editor cannot lock everyone out or hand out the keys. */
@@ -220,6 +222,8 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     ownDashboardPermission("PURCHASING"),
     ...READ_WORK,
     "requests.work.purchasing",
+    // Purchasing decides what follows its own completed RFQ: continue it as a PO (D-100). The Superadmin can take this away in the permission editor.
+    "requests.continue.rfq",
     // Purchasing raises an RFQ for an existing project (it is also shown to the project's Sales and SOA PICs); never a BOQ or a PO.
     "requests.create.rfq",
     // Like SOA (for a BOQ), Purchasing registers the project an RFQ is for when it does not exist yet: from another source (Other), or

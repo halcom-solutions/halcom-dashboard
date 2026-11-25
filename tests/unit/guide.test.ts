@@ -5,7 +5,7 @@ import { ROLES } from "@/domain/access/roles";
 import { activeGuideRoles, mayReadRoleSteps, nodesOfRole, visibleLinks } from "@/domain/guide/access";
 import { ROLE_GUIDES } from "@/domain/guide/role-guides";
 import { GUIDE_EDGES, GUIDE_LANES, GUIDE_NODES, GUIDE_NODES_BY_ID, GUIDE_ROLE_CAPABILITY, LANE_ROWS } from "@/domain/guide/workflow";
-import { canContinueFlow, canWorkOn } from "@/domain/requests/access";
+import { canContinueFlow, canWorkOn, mayDecideFlow } from "@/domain/requests/access";
 import { NEXT_IN_FLOW, REQUEST_STATUSES, allowedTransitions, canHandOver, isRetired, reasonRequired } from "@/domain/requests/status";
 import { CHART, chartSize, edgeGeometry, nodeRect, overlaps, type Rect } from "@/features/guide/geometry";
 
@@ -191,13 +191,29 @@ describe("the guide's statements match the application's rules", () => {
     expect(canHandOver("PO", "COMPLETED")).toBe(false);
   });
 
-  it("SOA decides after a BOQ only, Sales decides on its own projects, Purchasing never decides", () => {
+  it("SOA decides after a BOQ only, Sales decides on its own projects, Purchasing decides after an RFQ only", () => {
     expect(canContinueFlow("SOA", "BOQ", false)).toBe(true);
     expect(canContinueFlow("SOA", "RFQ", false)).toBe(false);
     expect(canContinueFlow("SALES", "RFQ", true)).toBe(true);
     expect(canContinueFlow("SALES", "RFQ", false)).toBe(false);
-    expect(canContinueFlow("PURCHASING", "RFQ", false)).toBe(false);
+    expect(canContinueFlow("PURCHASING", "RFQ", false)).toBe(true);
+    expect(canContinueFlow("PURCHASING", "BOQ", false)).toBe(false);
     expect(canContinueFlow("ADMIN", "RFQ", false)).toBe(true);
+  });
+
+  it("lets the Superadmin take the RFQ decision away from Purchasing, or give it to SOA", () => {
+    setPermissionOverrides([{ role: "PURCHASING", permission: "requests.continue.rfq", granted: false }]);
+    expect(canContinueFlow("PURCHASING", "RFQ", false)).toBe(false);
+    expect(mayDecideFlow("PURCHASING")).toBe(false);
+    setPermissionOverrides([{ role: "SOA", permission: "requests.continue.rfq", granted: true }]);
+    expect(canContinueFlow("SOA", "RFQ", false)).toBe(true);
+    expect(canContinueFlow("SOA", "BOQ", false)).toBe(true);
+  });
+
+  it("shows the Purchasing decision as a step of the chart that leads to the PO", () => {
+    expect(GUIDE_NODES_BY_ID.get("pur.continue")?.role).toBe("PURCHASING");
+    expect(GUIDE_EDGES.some((edge) => edge.from === "pur.quote" && edge.to === "pur.continue")).toBe(true);
+    expect(GUIDE_EDGES.some((edge) => edge.from === "pur.continue" && edge.to === "pur.po")).toBe(true);
   });
 
   it("SOA works BOQs, Purchasing works RFQs and POs, nobody else works requests", () => {

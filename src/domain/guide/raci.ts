@@ -25,7 +25,7 @@ export const RACI_ROWS: readonly RaciRow[] = [
   { activity: "Melanjutkan BOQ yang selesai ke RFQ", codes: { SALES: "A", SOA: "R", PURCHASING: "I" } },
   { activity: "Mengajukan RFQ (tanpa BOQ, atau untuk proyek yang sudah ada)", codes: { SALES: "A/R", PURCHASING: "R", SOA: "I" } },
   { activity: "Mengerjakan RFQ dan memperbarui progres quotation", codes: { PURCHASING: "A/R", SALES: "I", SOA: "I" } },
-  { activity: "Memutuskan PO", codes: { SALES: "A/R", PURCHASING: "I", FINANCE: "I" } },
+  { activity: "Memutuskan PO (melanjutkan RFQ yang selesai)", codes: { SALES: "A/R", PURCHASING: "R", FINANCE: "I" } },
   { activity: "Memproses PO", codes: { PURCHASING: "A/R", SALES: "I", FINANCE: "I" } },
   { activity: "Menjaga SLA dan PIC request BOQ", codes: { SOA: "A/R", MANAGEMENT: "I", ADMIN: "I" } },
   { activity: "Menjaga SLA dan PIC request RFQ dan PO", codes: { PURCHASING: "A/R", MANAGEMENT: "I", ADMIN: "I" } },

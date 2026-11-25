@@ -83,7 +83,65 @@ export type ProjectFilter = {
   ownerKeys?: readonly string[];
   soaPicKeys?: readonly string[];
   industryKeys?: readonly string[];
+  /** Projects that already have a BOQ, an RFQ, both, or neither (deleted requests do not count). */
+  requests?: ProjectRequestFilter;
 };
+
+export const PROJECT_REQUEST_FILTERS = ["BOQ", "RFQ", "BOTH", "NONE"] as const;
+export type ProjectRequestFilter = (typeof PROJECT_REQUEST_FILTERS)[number];
+export const PROJECT_REQUEST_FILTER_LABELS: Record<ProjectRequestFilter, string> = {
+  BOQ: "Sudah BOQ",
+  RFQ: "Sudah RFQ",
+  BOTH: "Sudah BOQ dan RFQ",
+  NONE: "Belum BOQ maupun RFQ",
+};
+
+function requestClauses(wanted: ProjectRequestFilter | undefined): Prisma.ProjectWhereInput[] {
+  const has = (type: RequestType): Prisma.ProjectWhereInput => ({ requests: { some: { type, deletedAt: null } } });
+  switch (wanted) {
+    case "BOQ":
+      return [has("BOQ")];
+    case "RFQ":
+      return [has("RFQ")];
+    case "BOTH":
+      return [has("BOQ"), has("RFQ")];
+    case "NONE":
+      return [{ requests: { none: { type: { in: ["BOQ", "RFQ"] }, deletedAt: null } } }];
+    default:
+      return [];
+  }
+}
+
+/** The fields the Projects search looks in, the description Sales writes on the Overview among them. */
+function searchClause(word: string): Prisma.ProjectWhereInput {
+  const text = { contains: word, mode: "insensitive" as const };
+  return {
+    OR: [
+      { code: text },
+      { endUserCompany: text },
+      { name: text },
+      { description: text },
+      { location: text },
+      { stakeholders: text },
+      { salesOwner: { name: text } },
+      { externalSourceName: text },
+      { externalContact: text },
+      { externalReference: text },
+      { soaPic: { name: text } },
+      { principal: { name: text } },
+      { principals: { some: { principal: { name: text } } } },
+    ],
+  };
+}
+
+/**
+ * Every word must appear somewhere, in any order and in any of the fields, so "cctv bank" finds a Bank project whose description says
+ * CCTV. Words in double quotes stay together as one phrase ("job 7" does not find "job 17").
+ */
+export function searchWords(search: string | undefined): string[] {
+  const words = [...(search ?? "").toLowerCase().matchAll(/"([^"]*)"|(\S+)/g)].map((match) => (match[1] ?? match[2] ?? "").replace(/"/g, "").trim());
+  return [...new Set(words.filter(Boolean))].slice(0, 8);
+}
 
 function showWhere(show: ProjectShow | undefined) {
   switch (show) {
@@ -258,7 +316,6 @@ function chartClauses(filter: ProjectFilter): Prisma.ProjectWhereInput[] {
 }
 
 function projectWhere(filter: ProjectFilter): Prisma.ProjectWhereInput {
-  const search = filter.search?.trim();
   return {
     deletedAt: null,
     ...showWhere(filter.show),
@@ -271,24 +328,8 @@ function projectWhere(filter: ProjectFilter): Prisma.ProjectWhereInput {
     AND: [
       ...(filter.principalId ? [{ OR: [{ principals: { some: { principalId: filter.principalId } } }, { principalId: filter.principalId }] }] : []),
       ...chartClauses(filter),
-      ...(search
-        ? [
-            {
-              OR: [
-                { code: { contains: search, mode: "insensitive" as const } },
-                { endUserCompany: { contains: search, mode: "insensitive" as const } },
-                { name: { contains: search, mode: "insensitive" as const } },
-                { salesOwner: { name: { contains: search, mode: "insensitive" as const } } },
-                { externalSourceName: { contains: search, mode: "insensitive" as const } },
-                { externalContact: { contains: search, mode: "insensitive" as const } },
-                { externalReference: { contains: search, mode: "insensitive" as const } },
-                { soaPic: { name: { contains: search, mode: "insensitive" as const } } },
-                { principal: { name: { contains: search, mode: "insensitive" as const } } },
-                { principals: { some: { principal: { name: { contains: search, mode: "insensitive" as const } } } } },
-              ],
-            },
-          ]
-        : []),
+      ...requestClauses(filter.requests),
+      ...searchWords(filter.search).map(searchClause),
     ],
   };
 }

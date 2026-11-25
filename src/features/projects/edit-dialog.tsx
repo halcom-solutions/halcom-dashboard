@@ -17,7 +17,7 @@ export function EditDialog({ title, buttonLabel, state, children }: { title: str
   }, [state]);
   return (
     <>
-      <Button type="button" variant="outline" size="sm" aria-haspopup="dialog" aria-label={buttonLabel} onClick={() => dialog.current?.showModal()}>
+      <Button type="button" size="sm" aria-haspopup="dialog" aria-label={buttonLabel} onClick={() => dialog.current?.showModal()}>
         <Pencil aria-hidden data-icon="inline-start" />
         Edit
       </Button>

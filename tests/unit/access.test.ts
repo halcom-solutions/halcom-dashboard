@@ -131,7 +131,7 @@ describe("permission matrix", () => {
       expect(can(role, "requests.work.boq")).toBe(["SUPERADMIN", "ADMIN", "SOA"].includes(role));
       expect(can(role, "requests.work.purchasing")).toBe(["SUPERADMIN", "ADMIN", "PURCHASING"].includes(role));
       expect(can(role, "requests.handover")).toBe(["SUPERADMIN", "ADMIN", "SOA"].includes(role));
-      // Purchasing continues its own completed RFQ as a PO; the Superadmin can switch this off in the permission editor (D-097).
+      // Purchasing continues its own completed RFQ as a PO; the Superadmin can switch this off in the permission editor (D-100).
       expect(can(role, "requests.continue.rfq")).toBe(["SUPERADMIN", "PURCHASING"].includes(role));
     }
   });

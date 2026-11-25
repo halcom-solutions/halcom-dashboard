@@ -153,4 +153,4 @@ A page that needs a field-level rule (SOA edits) goes through a service that whi
   It prints state only; it never migrates, seeds or deletes.
 - `prisma/data/` (the sales export, real customer data) and `backups/` and `DEV_ACCOUNTS.md` are git-ignored and Docker-ignored.
 
-- **Added 2026-11-25 (D-097):** Purchasing continues a completed RFQ as a PO (`requests.continue.rfq`, default Purchasing, set by the Superadmin in `/admin/permissions`); new guide step `pur.continue`, RACI row and the three User Guide PDFs reprinted. Unit 445/445 on a scratch copy; integration (`flow.test.ts`) not run: it needs the database container.
+- **Added 2026-11-25 (D-100):** Purchasing continues a completed RFQ as a PO (`requests.continue.rfq`, default Purchasing, set by the Superadmin in `/admin/permissions`); new guide step `pur.continue`, RACI row and the three User Guide PDFs reprinted. Unit 445/445 on a scratch copy; integration (`flow.test.ts`) not run: it needs the database container.

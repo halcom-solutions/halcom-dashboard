@@ -222,7 +222,7 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     ownDashboardPermission("PURCHASING"),
     ...READ_WORK,
     "requests.work.purchasing",
-    // Purchasing decides what follows its own completed RFQ: continue it as a PO (D-097). The Superadmin can take this away in the permission editor.
+    // Purchasing decides what follows its own completed RFQ: continue it as a PO (D-100). The Superadmin can take this away in the permission editor.
     "requests.continue.rfq",
     // Purchasing raises an RFQ for an existing project (it is also shown to the project's Sales and SOA PICs); never a BOQ or a PO.
     "requests.create.rfq",

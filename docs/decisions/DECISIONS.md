@@ -1131,7 +1131,7 @@ The preview of each template (filled with sample data) is no longer a long block
 - **Project baru.** "+ Project baru" opens a window (asked by the owner the same day, replacing a "Project sudah ada / Project baru" choice in the form). "Pakai project ini" closes it and the Project field then names the new project, with "Ubah" and "Pakai project yang ada"; nothing is saved until the RFQ is sent. A new project asks only for its name, the end user and Sales: a registered salesperson (an Internal Sales project they own) or Other (the name of the seller typed in). The same submit creates the project and its RFQ through `createProject` (no new server rule); source, contact, reference, description, target date and commercial fields are left for later on the project page.
 - The "New project + RFQ" button on the RFQ and PO lists and its guide link are gone: the request form covers it. `/projects/new` stays open to Purchasing.
 
-## D-097: Purchasing continues a completed RFQ as a PO; the right is a permission the Superadmin sets (2026-11-25)
+## D-100: Purchasing continues a completed RFQ as a PO; the right is a permission the Superadmin sets (2026-11-25)
 
 **Asked by the owner.** Amends D-013 and the rule that only Sales (owner), SOA (after a BOQ) and admins decide what follows a completed request.
 
@@ -1139,3 +1139,12 @@ The preview of each template (filled with sample data) is no longer a long block
 - **Where.** `canContinueFlow` (`src/domain/requests/access.ts`) accepts `type === "RFQ"` with the new permission, and `mayDecideFlow` is the entry check of `handOverToPurchasing` and `stopFlow`. The service rules are unchanged: the RFQ must be Completed, the project On Track, one PO per RFQ (a repeat returns the existing PO), a decision not to continue can be undone by continuing. The PO arrives In progress, raised in the name of the Purchasing account that clicked; Sales PIC, the RFQ's requester and the Purchasing team are notified (`request.handed_over`). Purchasing still does not see the email text (`requests.email`): Sales PIC copies the HITPO text.
 - **The Superadmin sets it.** The permission is in the editor on `/admin/permissions` like any other, so the Superadmin can take it from Purchasing (the "What happens next?" card disappears and the services answer FORBIDDEN on the next request) or grant it to another role. No migration: the database holds only deviations from the defaults.
 - **Guide (page and PDF).** New step `pur.continue` "Teruskan RFQ ke PO" in the Purchasing lane, between "Perbarui progres quotation" and "Proses PO", with its own arrows; Sales' "Putuskan PO" stays as the other way to the same PO. RACI "Memutuskan PO" gives Purchasing R next to Sales A/R. `ROLE_GUIDES` for Purchasing and SOA updated. Two stale statements corrected: a handed-over RFQ or PO arrives In progress, not Submitted. The three PDFs are reprinted from the same definitions (`npm run guide:pdf`).
+
+## D-099: Projects search by word and description, a BOQ / RFQ filter, dropdowns that apply at once (2026-11-20)
+
+Asked by the product owner. (D-097 and D-098 are taken on other branches.)
+
+- **Search.** The Projects search splits the text into words; a project matches when every word appears somewhere, in any order. The fields now include the Overview description Sales write, the location and the stakeholders, beside the code, End User, name, PICs, principals and external source. Words in double quotes stay one phrase (`"job 7"` does not find "job 17").
+- **BOQ / RFQ filter.** A dropdown on the Projects list: "Sudah BOQ", "Sudah RFQ", "Sudah BOQ dan RFQ", "Belum BOQ maupun RFQ" (`requests=` in the URL). Any BOQ or RFQ counts, whatever its status; a deleted request does not.
+- **Dropdowns apply at once.** Picking a value in any filter dropdown reloads the list; the button (now "Cari") is only for the search text, which also applies on Enter.
+- **Edit button.** The Edit button of the name and description on the Overview is blue (the primary button).

@@ -164,7 +164,8 @@ describe("the Projects table pages", () => {
     expect((await searchProjects(db, actor(sales), filter, { page: 99, pageSize: 25 })).page).toBe(5);
     expect((await searchProjects(db, actor(sales), filter)).rows).toHaveLength(25);
     // A filter narrows the total and the pages together.
-    expect(await searchProjects(db, actor(sales), { ...filter, search: "row 119" }, { pageSize: 25 })).toMatchObject({ total: 1, pageCount: 1 });
+    // (In quotes, since the words alone also find the project whose code ends in 119.)
+    expect(await searchProjects(db, actor(sales), { ...filter, search: `"row 119"` }, { pageSize: 25 })).toMatchObject({ total: 1, pageCount: 1 });
   });
 
   it("sorts the whole matching set before a page is cut out of it, so a smaller page size never sorts only what it shows", async () => {

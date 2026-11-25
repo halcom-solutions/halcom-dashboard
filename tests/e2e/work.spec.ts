@@ -541,15 +541,20 @@ test.describe("projects and requests", () => {
 
     await page.goto("/projects");
     await expect(page.getByRole("link", { name: projectCode })).toBeVisible();
+    // A dropdown filters as soon as it is picked; the search text applies with the Cari button.
     await page.getByLabel("Progress").selectOption("PROPOSE");
-    await page.getByRole("button", { name: "Filter" }).click();
     await expect(page).toHaveURL(/progress=PROPOSE/);
     await expect(page.getByRole("link", { name: projectCode })).toHaveCount(0);
 
     await page.getByLabel("Progress").selectOption("QUALIFY");
-    await page.getByLabel("Search projects").fill("pipeline demo");
-    await page.getByRole("button", { name: "Filter" }).click();
+    await expect(page).toHaveURL(/progress=QUALIFY/);
+    await page.getByLabel("Search projects").fill("demo pipeline");
+    await page.getByRole("button", { name: "Cari" }).click();
+    await expect(page).toHaveURL(/q=demo/);
     await expect(page.getByRole("link", { name: projectCode })).toBeVisible();
+    await page.getByLabel("BOQ / RFQ").selectOption("RFQ");
+    await expect(page).toHaveURL(/requests=RFQ/);
+    await expect(page.getByLabel("Search projects")).toHaveValue("demo pipeline");
     await page.getByRole("link", { name: "Clear filters" }).click();
     await expect(page).toHaveURL(/\/projects$/);
   });

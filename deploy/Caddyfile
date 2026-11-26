@@ -29,10 +29,40 @@
 		-Server
 	}
 
-	reverse_proxy app:3000
+	# The cron endpoints are called by the scripts inside the app container, on its own port. They are never needed from outside, so the
+	# internet gets a plain 404 and the shared secret is never even tried.
+	@internal path /api/internal/*
+	handle @internal {
+		respond 404
+	}
 
-	# Access log on stdout (Docker rotates it: 5 x 10 MB), read with `docker logs`.
-	log
+	handle {
+		reverse_proxy app:3000
+	}
+
+	# Access log on stdout (Docker rotates it: 5 x 10 MB), read with `docker logs`. It is trimmed of personal data: the client address is
+	# cut to its network (/24 for IPv4, /48 for IPv6), the browser string is dropped, and the query parameters that carry a search term
+	# (q) or an e-mail address (account, on the sign-in page link) are removed. Cookie and Authorization headers are never logged by default.
+	log {
+		format filter {
+			wrap json
+			fields {
+				request>remote_ip ip_mask {
+					ipv4 24
+					ipv6 48
+				}
+				request>client_ip ip_mask {
+					ipv4 24
+					ipv6 48
+				}
+				request>headers>User-Agent delete
+				request>uri query {
+					delete q
+					delete account
+				}
+			}
+		}
+	}
 }
 
 {$DOMAIN} {

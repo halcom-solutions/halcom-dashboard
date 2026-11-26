@@ -1,6 +1,6 @@
 # Security checklist after deploy (Hostinger VPS)
 
-Dipakai **setelah** aplikasi hidup di Hostinger (Ubuntu 26.04, 1 `app` + 1 `db`, Caddy di host, Neon sebagai salinan backup), dan diulang sesuai jadwal di bagian 11.
+Dipakai **setelah** aplikasi hidup di Hostinger (Ubuntu 26.04; `compose.hostinger.yaml`: container `db`, `migrate`, `app`, dan `caddy`; image dibangun di VPS oleh workflow `Deploy to Hostinger`; Neon sebagai salinan lewat `db-sync.sh`), dan diulang sesuai jadwal di bagian 11.
 Isi tiap kotak dengan tanggal dan inisial orang yang memeriksa. Bukti (perintah atau tangkapan layar) disimpan di tiket atau catatan deploy, bukan di repo.
 
 Prioritas: **P0** wajib sebelum pengguna sungguhan masuk, **P1** dalam minggu pertama, **P2** dalam bulan pertama.
@@ -31,27 +31,33 @@ Kolom "Cek" memberi perintah atau cara membuktikannya. Item bertanda **[kode]** 
 
 | Status | P | Item | Cek |
 |---|---|---|---|
-| [ ] | P0 | Port 3000 hanya di loopback. Penting: aplikasi memakai header `x-forwarded-for` (nilai pertama) untuk pembatas login, jadi jika port 3000 terbuka ke internet, pembatas bisa dikelabui | `ss -tlnp \| grep 3000` menunjukkan `127.0.0.1:3000`, bukan `0.0.0.0` |
-| [ ] | P0 | Database tidak punya port publik | `docker compose -f compose.prod.yaml ps` tanpa pemetaan port untuk `db`; `nmap -p 5432 <ip>` tertutup |
+| [ ] | P0 | Container `app` tidak punya port yang dipublikasikan ke host: hanya Caddy (container) yang menjangkaunya lewat jaringan Docker. Penting: aplikasi memakai nilai pertama `x-forwarded-for` untuk pembatas login, jadi `app` tidak boleh bisa dijangkau langsung | `docker compose -p halcom-dashboard -f /opt/halcom/compose.hostinger.yaml ps` tanpa pemetaan port untuk `app` dan `db`; `nmap -Pn <ip>` hanya 22, 80, 443 |
+| [ ] | P0 | Database tidak punya port publik | tidak ada `ports:` untuk `db` di `compose.hostinger.yaml`; `nmap -p 5432 <ip>` tertutup |
 | [ ] | P0 | HTTP dialihkan ke HTTPS | `curl -I http://<domain>` memberi 301 atau 308 ke `https://` |
 | [ ] | P0 | Caddy mengirim IP klien yang benar, tidak mempercayai `X-Forwarded-For` dari luar | dari luar, kirim satu login yang salah dengan header palsu (`curl -H "X-Forwarded-For: 1.2.3.4" ...`), lalu lihat baris `scope = ip` di tabel `login_attempts`: kuncinya harus berasal dari IP asli Anda (atau hash-nya), bukan `1.2.3.4` |
 | [ ] | P1 | TLS 1.2+ saja, tanpa protokol lama | uji di SSL Labs atau `testssl.sh <domain>` |
-| [ ] | P1 | Header keamanan ada **[kode]**: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `X-Frame-Options` atau `frame-ancestors`, `Permissions-Policy` | `curl -sI https://<domain> \| grep -iE "strict\|x-content\|referrer\|x-frame\|permissions"` |
-| [ ] | P1 | Form dan Server Actions bekerja di balik proxy (`serverActions.allowedOrigins` memuat domain) **[kode]** | masuk dan simpan satu form; tidak ada error "Invalid Server Actions request" |
+| [ ] | P1 | Header keamanan dikirim Caddy (sudah ada di `deploy/Caddyfile`): `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy`, `X-Robots-Tag` | `curl -sI https://<domain> \| grep -iE "strict\|x-content\|referrer\|x-frame\|permissions\|robots"` |
+| [ ] | P1 | Form dan Server Actions bekerja di balik proxy | masuk dan simpan satu form; tidak ada error "Invalid Server Actions request" |
 | [ ] | P2 | CSP (mulai mode report-only) **[kode]** | header `Content-Security-Policy-Report-Only` ada, lalu diperketat |
 | [ ] | P2 | HSTS preload hanya setelah semua subdomain HTTPS | jangan aktifkan lebih awal |
+| [ ] | P0 | Endpoint cron tidak terjangkau dari internet (`/api/internal/*` dijawab 404 oleh Caddy; skrip cron memanggilnya lewat port `app` sendiri) | `curl -s -o /dev/null -w "%{http_code}" -X POST https://<domain>/api/internal/sla-scan` memberi `404` |
+| [ ] | P1 | Log Caddy tidak memuat data pribadi: IP dipotong (/24, /48), tanpa user agent, tanpa parameter `q` dan `account` | `docker compose -p halcom-dashboard -f /opt/halcom/compose.hostinger.yaml logs --tail 20 caddy` |
+| [ ] | P1 | `deploy-vps.sh` memvalidasi Caddyfile sebelum mengganti apa pun (deploy berhenti bila tidak valid) | jalankan deploy setelah mengubah Caddyfile dan baca baris `caddy validate` |
 
 ## 4. Container
 
 | Status | P | Item | Cek |
 |---|---|---|---|
-| [ ] | P0 | Image berasal dari GHCR dengan tag SHA commit, bukan `latest` dan bukan dibangun di VPS | `docker compose -f compose.prod.yaml images` |
+| [ ] | P0 | Image dibangun dari commit yang dideploy dan diberi tag SHA 12 karakter (workflow `Deploy to Hostinger` mengirim kode lewat `git archive`, VPS tidak memegang token GitHub) | `cat /opt/halcom/.last_good_tag`; `docker images \| grep halcom-dashboard` |
 | [ ] | P0 | `app` berjalan sebagai user `node` (bukan root), `cap_drop: ALL`, `no-new-privileges` | `docker inspect <app> --format '{{.Config.User}} {{.HostConfig.CapDrop}} {{.HostConfig.SecurityOpt}}'` |
-| [ ] | P0 | Migrasi tidak jalan otomatis saat aplikasi start | hanya lewat `deploy.sh` (backup dulu, lalu `migrate`) |
-| [ ] | P1 | Healthcheck sehat | `docker compose -f compose.prod.yaml ps` menunjukkan `healthy`; `curl https://<domain>/api/health` memberi `{"status":"ok"...}` |
+| [ ] | P0 | Migrasi tidak jalan otomatis saat aplikasi start | hanya lewat `deploy-vps.sh` (dump `predeploy` dulu, lalu `migrate`); `ls /opt/halcom/predeploy` |
+| [ ] | P1 | Healthcheck sehat | `docker compose -p halcom-dashboard -f /opt/halcom/compose.hostinger.yaml ps` menunjukkan `healthy`; `curl https://<domain>/api/health` memberi status ok |
 | [ ] | P1 | Log berotasi (5 x 10 MB) dan disk tidak penuh | `docker inspect --format '{{.HostConfig.LogConfig}}'`; `df -h` |
 | [ ] | P1 | Tidak ada rahasia di image atau log | `docker history <image>`; `docker compose logs app \| grep -iE "password\|secret\|token"` kosong |
-| [ ] | P2 | Image dan digest dasar diperbarui berkala (Dependabot) | PR Dependabot ditinjau tiap minggu |
+| [ ] | P2 | Image dasar disematkan dengan digest. `caddy:2` di `compose.hostinger.yaml` masih tag mengambang: sematkan digest-nya dan perbarui berkala (Dependabot) | `docker inspect caddy --format "{{.Image}}"`; PR Dependabot ditinjau tiap minggu |
+| [ ] | P1 | Rahasia yang sama (`POSTGRES_PASSWORD`, `DOMAIN`) ada di Docker Manager hPanel **dan** di `/opt/halcom/.env`: keduanya sama, `.env` berizin 600, dan akses ke panel Hostinger dibatasi dua orang | bandingkan nilai di kedua tempat |
+| [ ] | P1 | `CRON_SECRET` acak minimal 16 karakter di `/opt/halcom/.env` (kosong membuat endpoint mati) | `grep -c "^CRON_SECRET=.\{16,\}" /opt/halcom/.env` memberi 1 |
+| [ ] | P1 | `neon.env` berizin 600 dan berisi alamat **langsung** (bukan pooler); `CUTOVER_DONE` ada setelah pindah sehingga `neon-to-vps` tidak bisa menimpa database VPS | `stat -c "%a" /opt/halcom/neon.env`; `ls /opt/halcom/CUTOVER_DONE` |
 
 ## 5. Rahasia dan konfigurasi
 
